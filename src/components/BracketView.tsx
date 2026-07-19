@@ -125,7 +125,10 @@ export function BracketView({ tournament, entries, matches }: Props) {
     const n1 = name(m.entry1_id);
     const n2 = name(m.entry2_id);
     const both = !!m.entry1_id && !!m.entry2_id;
-    const isBye = (!!m.entry1_id) !== (!!m.entry2_id);
+    // 不戦勝は「片側が空 かつ 確定済み(生成時のBYE)」のみ。
+    // 2回戦以降の空き枠は下の試合の勝者待ちなので「勝者待ち」を表示する。
+    const isBye =
+      (!!m.entry1_id) !== (!!m.entry2_id) && m.status === "done";
     const w1 = !!m.winner_entry_id && m.winner_entry_id === m.entry1_id;
     const w2 = !!m.winner_entry_id && m.winner_entry_id === m.entry2_id;
     const pending = m.status === "pending";

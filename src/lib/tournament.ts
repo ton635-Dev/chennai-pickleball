@@ -93,24 +93,21 @@ export function generateSingleElim(entryIds: string[]): GeneratedMatch[] {
     else nm.entry2_id = winner;
   };
 
-  // BYE解決(ラウンド順に。BYE勝者が次戦でまたBYEになることは通常ないが順に処理)
-  for (let r = 1; r <= R; r++) {
-    const count = B / Math.pow(2, r);
-    for (let p = 0; p < count; p++) {
-      const m = map.get(key(r, p))!;
-      if (m.status === "done") continue;
-      const a = m.entry1_id;
-      const b = m.entry2_id;
-      // 片方だけ存在 = 不戦勝
-      if (a && !b) {
-        m.winner_entry_id = a;
-        m.status = "done";
-        advance(r, p, a);
-      } else if (!a && b) {
-        m.winner_entry_id = b;
-        m.status = "done";
-        advance(r, p, b);
-      }
+  // BYE解決は1回戦のみ。
+  // 標準シード配置では BYE 同士が当たることはないため、2回戦以降で片側が
+  // 空いているのは「下の試合の勝者待ち」であり、不戦勝にしてはいけない。
+  for (let p = 0; p < firstCount; p++) {
+    const m = map.get(key(1, p))!;
+    const e1 = m.entry1_id;
+    const e2 = m.entry2_id;
+    if (e1 && !e2) {
+      m.winner_entry_id = e1;
+      m.status = "done";
+      advance(1, p, e1);
+    } else if (!e1 && e2) {
+      m.winner_entry_id = e2;
+      m.status = "done";
+      advance(1, p, e2);
     }
   }
 
