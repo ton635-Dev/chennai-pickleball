@@ -1,0 +1,96 @@
+<!-- @dsCard group="画面モック(PC)" name="ホーム(ブラウザ表示)" viewport="1280x800" -->
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<style>
+*{margin:0;padding:0;box-sizing:border-box}
+:root{--bg:#F4F7F5;--ink:#14211C;--muted:#5F6E67;--line:#E2EAE5;--primary:#0E7C63;--primary-d:#0A5C4A;--accent:#D8EC3F;--navy:#122B33;--amber:#E8A93C;--gray:#9AA8A2}
+body{font-family:'Hiragino Kaku Gothic ProN','Noto Sans JP',system-ui,sans-serif;background:var(--bg);color:var(--ink);width:1280px;height:800px;overflow:hidden}
+.nav{display:flex;align-items:center;gap:28px;background:#fff;border-bottom:1px solid var(--line);padding:0 32px;height:64px}
+.brand{font-size:17px;font-weight:800;display:flex;align-items:center;gap:10px}
+.brand .mark{width:32px;height:32px;border-radius:10px;background:var(--primary);color:var(--accent);display:flex;align-items:center;justify-content:center}
+.nav a{font-size:14px;font-weight:700;color:var(--muted);text-decoration:none;padding:20px 2px;border-bottom:3px solid transparent}
+.nav a.on{color:var(--primary-d);border-color:var(--primary)}
+.me{margin-left:auto;display:flex;align-items:center;gap:8px;background:var(--bg);border:1px solid var(--line);border-radius:999px;padding:5px 14px 5px 5px;font-size:13px;font-weight:700}
+.me .av{width:28px;height:28px;border-radius:50%;background:var(--navy);color:#fff;font-size:12px;display:flex;align-items:center;justify-content:center}
+.wrap{display:grid;grid-template-columns:1.5fr 1fr;gap:20px;padding:24px 32px;max-width:1180px;margin:0 auto}
+.card{background:#fff;border:1px solid var(--line);border-radius:16px;padding:20px;margin-bottom:20px}
+.hero{border:none;background:linear-gradient(140deg,#0E7C63,#0A5C4A);color:#fff;padding:28px;display:flex;justify-content:space-between;align-items:flex-start}
+.hero .tag{font-size:12px;font-weight:800;letter-spacing:.1em;color:var(--accent)}
+.hero .date{font-size:32px;font-weight:800;margin:6px 0 2px}
+.hero .sub{font-size:15px;opacity:.9}
+.hero .place{margin-top:14px;font-size:14px;font-weight:700}
+.hero .place small{font-weight:400;opacity:.8;text-decoration:underline;margin-left:6px}
+.hcta{text-align:right}
+.seg{display:flex;gap:8px}
+.seg button{border:none;border-radius:12px;padding:12px 22px;font-size:14px;font-weight:800;font-family:inherit;background:rgba(255,255,255,.14);color:#fff}
+.seg .on{background:var(--accent);color:var(--navy)}
+.wa{margin-top:12px;border:none;border-radius:999px;padding:11px 20px;font-size:13px;font-weight:800;font-family:inherit;background:rgba(255,255,255,.92);color:var(--primary-d)}
+h2{font-size:14px;color:var(--muted);font-weight:800;margin-bottom:12px}
+.evrow{display:flex;align-items:center;gap:16px;padding:13px 4px;border-bottom:1px solid var(--line);font-size:14px}
+.evrow:last-child{border-bottom:none}
+.dt{width:56px;text-align:center;background:#EDF4F1;border-radius:10px;padding:7px 0}
+.dt b{display:block;font-size:17px}
+.dt span{font-size:11px;color:var(--muted)}
+.evrow .info{flex:1}
+.evrow .info b{display:block}
+.evrow .info span{font-size:12px;color:var(--muted)}
+.chip{border-radius:999px;padding:6px 14px;font-size:12px;font-weight:800}
+.chip.join{background:#E2F3EE;color:var(--primary-d)}
+.chip.none{background:#EDF1EF;color:var(--muted)}
+.match{display:flex;align-items:center;justify-content:space-between;font-size:13px;padding:11px 2px;border-bottom:1px solid var(--line)}
+.match:last-child{border-bottom:none}
+.match b{font-variant-numeric:tabular-nums;background:var(--navy);color:var(--accent);border-radius:8px;padding:4px 12px;font-size:14px}
+.court{display:flex;align-items:center;gap:12px;padding:10px 2px;border-bottom:1px solid var(--line);font-size:13px}
+.court:last-child{border-bottom:none}
+.court .th{width:44px;height:34px;border-radius:8px;background:linear-gradient(140deg,#0E7C63,#122B33);flex-shrink:0}
+.court b{display:block;font-size:13px}
+.court small{color:var(--muted);font-size:11px}
+.court .star{margin-left:auto;font-size:12px;font-weight:800;color:var(--primary-d)}
+</style>
+</head>
+<body>
+<div class="nav">
+  <div class="brand"><span class="mark">🏓</span>Chennai Pickleball</div>
+  <a class="on">ホーム</a><a>予定</a><a>スコアボード</a><a>大会</a><a>コート</a><a>ルール</a>
+  <div class="me"><span class="av">け</span>けんじ</div>
+</div>
+<div class="wrap">
+  <div>
+    <div class="card hero">
+      <div>
+        <div class="tag">次回の活動日</div>
+        <div class="date">7/26 (土) 6:30 – 9:00</div>
+        <div class="sub">参加 12名・未定 3名</div>
+        <div class="place">📍 Marina Sports Arena<small>地図を開く</small></div>
+      </div>
+      <div class="hcta">
+        <div class="seg"><button class="on">参加</button><button>未定</button><button>不参加</button></div>
+        <button class="wa">💬 WhatsAppで告知を共有</button>
+      </div>
+    </div>
+    <div class="card">
+      <h2>今後の予定</h2>
+      <div class="evrow"><div class="dt"><b>8/2</b><span>土</span></div><div class="info"><b>Besant Nagar Court</b><span>7:00 – 9:30・参加 6名</span></div><span class="chip join">参加</span></div>
+      <div class="evrow"><div class="dt"><b>8/9</b><span>土</span></div><div class="info"><b>Marina Sports Arena</b><span>6:30 – 9:00・参加 3名</span></div><span class="chip none">未回答</span></div>
+      <div class="evrow"><div class="dt"><b>8/17</b><span>日</span></div><div class="info"><b>第4回 チェンナイ杯(大会)</b><span>6:00 – 10:00・エントリー受付中</span></div><span class="chip none">未回答</span></div>
+    </div>
+  </div>
+  <div>
+    <div class="card">
+      <h2>最近の試合</h2>
+      <div class="match"><span>けんじ・ゆうた vs さとし・まい</span><b>11 - 8</b></div>
+      <div class="match"><span>あき・とも vs けんじ・まい</span><b>9 - 11</b></div>
+      <div class="match"><span>なお・れん vs ゆき・こう</span><b>11 - 7</b></div>
+    </div>
+    <div class="card">
+      <h2>コート情報</h2>
+      <div class="court"><span class="th"></span><div><b>Marina Sports Arena</b><small>屋外4面・ナイター可</small></div><span class="star">4.0 ★</span></div>
+      <div class="court"><span class="th"></span><div><b>Besant Nagar Court</b><small>屋外2面</small></div><span class="star">3.6 ★</span></div>
+      <div class="court"><span class="th"></span><div><b>Velachery Indoor</b><small>屋内3面・雨天OK</small></div><span class="star">4.4 ★</span></div>
+    </div>
+  </div>
+</div>
+</body>
+</html>

@@ -1,0 +1,59 @@
+<!-- @dsCard group="画面モック(スマホ)" name="ルールを学ぶ" viewport="390x844" -->
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<style>
+*{margin:0;padding:0;box-sizing:border-box}
+:root{--bg:#F4F7F5;--ink:#14211C;--muted:#5F6E67;--line:#E2EAE5;--primary:#0E7C63;--primary-d:#0A5C4A;--accent:#D8EC3F;--navy:#122B33;--amber:#E8A93C}
+body{font-family:'Hiragino Kaku Gothic ProN','Noto Sans JP',system-ui,sans-serif;background:var(--bg);color:var(--ink);width:390px;height:844px;display:flex;flex-direction:column;overflow:hidden}
+header{padding:20px 20px 8px}
+header h1{font-size:22px;font-weight:800}
+header p{font-size:12px;color:var(--muted);margin-top:3px}
+main{flex:1;overflow-y:auto;padding:8px 16px 16px}
+.quick{display:flex;align-items:center;gap:12px;background:var(--navy);color:#fff;border-radius:16px;padding:16px;margin-bottom:14px}
+.quick .ic{width:42px;height:42px;border-radius:12px;background:var(--accent);color:var(--navy);display:flex;align-items:center;justify-content:center;font-size:20px;flex-shrink:0}
+.quick b{font-size:15px;display:block}
+.quick span{font-size:12px;opacity:.75}
+.quick .go{margin-left:auto;font-size:18px;opacity:.6}
+.prog{background:#fff;border:1px solid var(--line);border-radius:16px;padding:14px 16px;margin-bottom:14px}
+.prog .t{display:flex;justify-content:space-between;font-size:13px;font-weight:800;margin-bottom:8px}
+.prog .t small{color:var(--muted);font-weight:400}
+.pbar{height:8px;border-radius:4px;background:#EDF1EF;overflow:hidden}
+.pbar i{display:block;height:100%;width:43%;background:var(--primary);border-radius:4px}
+.ch{display:flex;align-items:center;gap:12px;background:#fff;border:1px solid var(--line);border-radius:16px;padding:14px;margin-bottom:10px}
+.ch .no{width:36px;height:36px;border-radius:12px;background:#EDF4F1;color:var(--primary-d);font-weight:800;font-size:15px;display:flex;align-items:center;justify-content:center;flex-shrink:0}
+.ch.done .no{background:var(--primary);color:#fff}
+.ch b{font-size:14px;display:block}
+.ch span{font-size:11px;color:var(--muted)}
+.ch .st{margin-left:auto;font-size:11px;font-weight:800;flex-shrink:0}
+.ch.done .st{color:var(--primary-d)}
+.ch .st.badge{background:var(--accent);color:var(--navy);border-radius:999px;padding:4px 10px}
+.ch.todo .st{color:var(--muted)}
+</style>
+</head>
+<body>
+<header>
+  <h1>ルールを学ぶ</h1>
+  <p>初心者向けに7章で基本ルールをマスター。各章の最後にクイズがあります</p>
+</header>
+<main>
+  <div class="quick">
+    <span class="ic">⚡</span>
+    <div><b>ルール早見表</b><span>試合中にサッと確認したいときはこちら</span></div>
+    <span class="go">›</span>
+  </div>
+  <div class="prog">
+    <div class="t">学習の進み具合<small>3 / 7 章 完了</small></div>
+    <div class="pbar"><i></i></div>
+  </div>
+  <div class="ch done"><span class="no">✓</span><div><b>1. ピックルボールとは</b><span>競技の概要・コート・道具</span></div><span class="st badge">クイズ満点!</span></div>
+  <div class="ch done"><span class="no">✓</span><div><b>2. コートとポジション</b><span>キッチン(ノンボレーゾーン)の位置</span></div><span class="st">完了</span></div>
+  <div class="ch done"><span class="no">✓</span><div><b>3. サーブのルール</b><span>アンダーハンド・対角線・ワンバウンド</span></div><span class="st">完了</span></div>
+  <div class="ch todo"><span class="no">4</span><div><b>4. ツーバウンドルール</b><span>サーブ後の2バウンドを図解で理解</span></div><span class="st">未学習</span></div>
+  <div class="ch todo"><span class="no">5</span><div><b>5. ノンボレーゾーン</b><span>キッチンで反則になるケース</span></div><span class="st">未学習</span></div>
+  <div class="ch todo"><span class="no">6</span><div><b>6. スコアリング</b><span>点の数え方・コール(0-0-2)</span></div><span class="st">未学習</span></div>
+  <div class="ch todo"><span class="no">7</span><div><b>7. よくある反則・Q&A</b><span>実戦でありがちな疑問を解消</span></div><span class="st">未学習</span></div>
+</main>
+</body>
+</html>

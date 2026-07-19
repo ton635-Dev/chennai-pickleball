@@ -1,0 +1,61 @@
+<!-- @dsCard group="画面モック(スマホ)" name="スコアボード(試合中)" viewport="390x844" -->
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<style>
+*{margin:0;padding:0;box-sizing:border-box}
+:root{--accent:#D8EC3F;--navy:#122B33;--navy2:#0C1F26;--line:rgba(255,255,255,.12);--primary:#0E7C63}
+body{font-family:'Hiragino Kaku Gothic ProN','Noto Sans JP',system-ui,sans-serif;background:var(--navy2);color:#fff;width:390px;height:844px;display:flex;flex-direction:column;overflow:hidden}
+.top{display:flex;align-items:center;justify-content:space-between;padding:16px 16px 10px}
+.top .x{width:36px;height:36px;border-radius:50%;background:rgba(255,255,255,.1);display:flex;align-items:center;justify-content:center;font-size:15px}
+.top .t{font-size:13px;font-weight:800;opacity:.85}
+.call{text-align:center;padding:6px 0 14px}
+.call small{display:block;font-size:11px;letter-spacing:.2em;opacity:.6;margin-bottom:2px}
+.call b{font-size:34px;font-weight:800;color:var(--accent);font-variant-numeric:tabular-nums;letter-spacing:.06em}
+.side{flex:1;margin:0 14px;border-radius:22px;background:var(--navy);border:1px solid var(--line);display:flex;flex-direction:column;align-items:center;justify-content:center;position:relative}
+.side.srv{background:linear-gradient(160deg,#0E7C63,#0A5C4A);border-color:transparent}
+.side .team{font-size:16px;font-weight:800}
+.side .pts{font-size:104px;font-weight:800;line-height:1;font-variant-numeric:tabular-nums;margin:2px 0}
+.side.srv .pts{color:var(--accent)}
+.side .hint{font-size:11px;opacity:.55}
+.srvchip{position:absolute;top:14px;left:14px;display:flex;align-items:center;gap:6px;background:var(--accent);color:var(--navy);border-radius:999px;padding:5px 12px;font-size:12px;font-weight:800}
+.srvchip .b{width:10px;height:10px;border-radius:50%;background:var(--navy)}
+.pos{position:absolute;top:14px;right:14px;display:flex;gap:4px}
+.pos span{width:26px;height:20px;border:1.5px solid rgba(255,255,255,.5);border-radius:5px;font-size:10px;display:flex;align-items:center;justify-content:center;font-weight:800}
+.pos .on{background:var(--accent);color:var(--navy);border-color:var(--accent)}
+.vs{text-align:center;font-size:12px;font-weight:800;opacity:.5;padding:8px 0}
+.foot{display:flex;gap:10px;padding:16px 14px 24px}
+.foot button{flex:1;border:none;border-radius:16px;padding:16px 0;font-size:15px;font-weight:800;font-family:inherit}
+.undo{background:rgba(255,255,255,.12);color:#fff}
+.end{background:rgba(255,255,255,.06);color:rgba(255,255,255,.6)}
+</style>
+</head>
+<body>
+<div class="top">
+  <div class="x">✕</div>
+  <div class="t">ダブルス・11点先取(2点差)</div>
+  <div style="width:36px"></div>
+</div>
+<div class="call"><small>SCORE CALL</small><b>7 - 5 - 2</b></div>
+
+<div class="side srv">
+  <span class="srvchip"><span class="b"></span>サーブ #2</span>
+  <span class="pos"><span>左</span><span class="on">右</span></span>
+  <div class="team">けんじ・ゆうた</div>
+  <div class="pts">7</div>
+  <div class="hint">エリアをタップで得点</div>
+</div>
+<div class="vs">VS</div>
+<div class="side">
+  <div class="team">さとし・まい</div>
+  <div class="pts">5</div>
+  <div class="hint">エリアをタップで得点</div>
+</div>
+
+<div class="foot">
+  <button class="undo">↩ 元に戻す</button>
+  <button class="end">試合を終了</button>
+</div>
+</body>
+</html>

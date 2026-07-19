@@ -1,0 +1,137 @@
+<!-- @dsCard group="画面モック(スマホ)" name="大会・トーナメント表" viewport="390x844" -->
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<style>
+*{margin:0;padding:0;box-sizing:border-box}
+:root{--bg:#F4F7F5;--ink:#14211C;--muted:#5F6E67;--line:#E2EAE5;--primary:#0E7C63;--primary-d:#0A5C4A;--accent:#D8EC3F;--navy:#122B33;--amber:#E8A93C}
+body{font-family:'Hiragino Kaku Gothic ProN','Noto Sans JP',system-ui,sans-serif;background:var(--bg);color:var(--ink);width:390px;height:844px;display:flex;flex-direction:column;overflow:hidden}
+header{display:flex;align-items:center;gap:12px;padding:18px 20px 6px}
+header .back{width:34px;height:34px;border-radius:50%;background:#fff;border:1px solid var(--line);display:flex;align-items:center;justify-content:center;font-size:16px;flex-shrink:0}
+header h1{font-size:17px;font-weight:800}
+.live{margin-left:auto;background:var(--accent);color:var(--navy);border-radius:999px;padding:5px 12px;font-size:11px;font-weight:800}
+main{flex:1;overflow-y:auto;padding:4px 16px 20px}
+
+/* ラウンド進行ステッパー */
+.steps{display:flex;align-items:center;background:#fff;border:1px solid var(--line);border-radius:16px;padding:12px 18px;margin:8px 0 12px}
+.step{display:flex;flex-direction:column;align-items:center;gap:4px;flex:1}
+.step .c{width:28px;height:28px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:12px;font-weight:800;background:#EDF1EF;color:var(--muted)}
+.step.done .c{background:var(--primary);color:#fff}
+.step.now .c{background:var(--accent);color:var(--navy);box-shadow:0 0 0 4px rgba(216,236,63,.35)}
+.step span{font-size:10px;font-weight:800;color:var(--muted)}
+.step.now span{color:var(--primary-d)}
+.bar{height:3px;flex:1;background:#EDF1EF;border-radius:2px;margin:0 4px 16px}
+.bar.done{background:var(--primary)}
+
+/* 次の試合 */
+.next{background:linear-gradient(145deg,#0E7C63,#0A5C4A);color:#fff;border-radius:16px;padding:13px 16px;margin-bottom:12px;display:flex;align-items:center;gap:12px}
+.next .ct{width:42px;height:42px;border-radius:12px;background:var(--accent);color:var(--navy);display:flex;flex-direction:column;align-items:center;justify-content:center;font-weight:800;flex-shrink:0}
+.next .ct b{font-size:15px;line-height:1}
+.next .ct span{font-size:8px;letter-spacing:.05em}
+.next small{font-size:11px;font-weight:800;letter-spacing:.08em;color:var(--accent)}
+.next b.t{display:block;font-size:14px;margin-top:2px}
+
+/* ブラケット(縦型・全体表示) */
+.board{background:#fff;border:1px solid var(--line);border-radius:16px;padding:12px 8px 14px}
+.canvas{position:relative;width:342px;height:344px;margin:0 auto}
+.canvas svg{position:absolute;inset:0}
+.rpill{position:absolute;left:50%;transform:translateX(-50%);background:#fff;border:1px solid var(--line);border-radius:999px;padding:2px 12px;font-size:9.5px;font-weight:800;color:var(--muted);letter-spacing:.15em;white-space:nowrap;z-index:2}
+.m{position:absolute;background:#fff;border:1.5px solid var(--line);border-radius:11px;overflow:hidden;box-shadow:0 2px 6px rgba(18,43,51,.06);z-index:1}
+.m .p{display:flex;align-items:center;gap:5px;padding:6px 7px;font-size:10.5px;border-bottom:1px solid var(--line)}
+.m .p:last-child{border-bottom:none}
+.m .nm{flex:1;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;font-weight:600}
+.m .sc{font-variant-numeric:tabular-nums;font-weight:800;background:#EDF1EF;color:var(--muted);border-radius:6px;padding:1px 6px;font-size:10px}
+.m .p.w{background:#EDF7E7;font-weight:800}
+.m .p.w .sc{background:var(--primary);color:#fff}
+.m .p.lose{color:var(--muted)}
+.m.pending{border-style:dashed;border-color:#BFCFC8}
+.m.pending .p{color:var(--muted)}
+.m.final{border:2px solid var(--accent);box-shadow:0 0 0 4px rgba(216,236,63,.22)}
+.m.final .crown{background:var(--navy);color:var(--accent);font-size:9px;font-weight:800;text-align:center;padding:4px;letter-spacing:.2em}
+.m.final .p{font-size:11.5px;padding:7px 9px}
+.legend{display:flex;justify-content:center;gap:16px;margin-top:12px;font-size:10px;color:var(--muted);font-weight:700}
+.legend i{display:inline-block;width:18px;height:3px;border-radius:2px;background:var(--primary);vertical-align:middle;margin-right:5px}
+.legend .pend i{background:none;border-top:3px dashed #BFCFC8}
+</style>
+</head>
+<body>
+<header>
+  <div class="back">‹</div>
+  <h1>第3回 チェンナイ杯</h1>
+  <span class="live">開催中</span>
+</header>
+<main>
+  <div class="steps">
+    <div class="step done"><span class="c">✓</span><span>準々決勝</span></div>
+    <div class="bar done"></div>
+    <div class="step now"><span class="c">2</span><span>準決勝</span></div>
+    <div class="bar"></div>
+    <div class="step"><span class="c">🏆</span><span>決勝</span></div>
+  </div>
+
+  <div class="next">
+    <div class="ct"><b>C2</b><span>COURT</span></div>
+    <div><small>次の試合 — 準決勝</small><b class="t">けんじ・ゆうた vs あき・とも</b></div>
+  </div>
+
+  <div class="board">
+    <div class="canvas" style="height:352px">
+      <svg viewBox="0 0 342 352" fill="none">
+        <!-- 準決勝 → 決勝(上へ勝ち上がり: 未確定=破線 / 確定=グリーン) -->
+        <path d="M83 154 V127 H170 V100" stroke="#BFCFC8" stroke-width="2.5" stroke-dasharray="5 5" stroke-linecap="round"/>
+        <path d="M258 154 V127 H170 V100" stroke="#0E7C63" stroke-width="2.5" stroke-linecap="round"/>
+        <!-- 準々決勝 → 準決勝(確定=グリーン) -->
+        <path d="M40 288 V250 H83 V212" stroke="#0E7C63" stroke-width="2.5" stroke-linecap="round"/>
+        <path d="M127 288 V250 H83 V212" stroke="#0E7C63" stroke-width="2.5" stroke-linecap="round"/>
+        <path d="M214 288 V250 H258 V212" stroke="#0E7C63" stroke-width="2.5" stroke-linecap="round"/>
+        <path d="M301 288 V250 H258 V212" stroke="#0E7C63" stroke-width="2.5" stroke-linecap="round"/>
+      </svg>
+
+      <div class="rpill" style="top:-2px">決勝</div>
+      <!-- 決勝(頂点) -->
+      <div class="m final pending" style="left:95px;top:20px;width:150px">
+        <div class="crown">🏆 FINAL</div>
+        <div class="p"><span class="nm">勝者待ち</span><span class="sc">–</span></div>
+        <div class="p"><span class="nm">さとし組</span><span class="sc">–</span></div>
+      </div>
+
+      <div class="rpill" style="top:118px">準決勝</div>
+      <!-- 準決勝: 2試合 -->
+      <div class="m pending" style="left:28px;top:154px;width:110px">
+        <div class="p"><span class="nm">けんじ組</span><span class="sc">–</span></div>
+        <div class="p"><span class="nm">あき組</span><span class="sc">–</span></div>
+      </div>
+      <div class="m" style="left:203px;top:154px;width:110px">
+        <div class="p w"><span class="nm">さとし組</span><span class="sc">11</span></div>
+        <div class="p lose"><span class="nm">なお組</span><span class="sc">7</span></div>
+      </div>
+
+      <div class="rpill" style="top:241px">準々決勝</div>
+      <!-- 準々決勝: 4試合 -->
+      <div class="m" style="left:0;top:288px;width:80px">
+        <div class="p w"><span class="nm">けんじ組</span><span class="sc">11</span></div>
+        <div class="p lose"><span class="nm">りな組</span><span class="sc">6</span></div>
+      </div>
+      <div class="m" style="left:87px;top:288px;width:80px">
+        <div class="p lose"><span class="nm">たけ組</span><span class="sc">9</span></div>
+        <div class="p w"><span class="nm">あき組</span><span class="sc">11</span></div>
+      </div>
+      <div class="m" style="left:174px;top:288px;width:80px">
+        <div class="p w"><span class="nm">さとし組</span><span class="sc">11</span></div>
+        <div class="p lose"><span class="nm">ゆき組</span><span class="sc">4</span></div>
+      </div>
+      <div class="m" style="left:261px;top:288px;width:80px">
+        <div class="p w"><span class="nm">なお組</span><span class="sc">12</span></div>
+        <div class="p lose"><span class="nm">みか組</span><span class="sc">10</span></div>
+      </div>
+    </div>
+    <div class="legend">
+      <span><i></i>勝ち上がり確定</span>
+      <span class="pend"><i></i>対戦待ち</span>
+      <span>▲ 下から上へ勝ち上がり</span>
+    </div>
+  </div>
+</main>
+</body>
+</html>

@@ -1,0 +1,83 @@
+<!-- @dsCard group="スタイル" name="デザイントークン" viewport="900x640" -->
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<style>
+*{margin:0;padding:0;box-sizing:border-box}
+:root{--bg:#F4F7F5;--surface:#fff;--ink:#14211C;--muted:#5F6E67;--line:#E2EAE5;--primary:#0E7C63;--primary-d:#0A5C4A;--accent:#D8EC3F;--navy:#122B33;--amber:#E8A93C;--gray:#9AA8A2;--r:16px}
+body{font-family:'Hiragino Kaku Gothic ProN','Noto Sans JP',system-ui,sans-serif;background:var(--bg);color:var(--ink);width:900px;padding:32px}
+h1{font-size:20px;margin-bottom:4px}
+.sub{color:var(--muted);font-size:13px;margin-bottom:24px}
+h2{font-size:13px;color:var(--muted);letter-spacing:.08em;margin:24px 0 12px}
+.row{display:flex;gap:12px;flex-wrap:wrap;align-items:flex-start}
+.sw{width:120px;border-radius:12px;overflow:hidden;border:1px solid var(--line);background:#fff}
+.sw .c{height:64px}
+.sw .l{padding:8px 10px;font-size:11px;line-height:1.5}
+.sw .l b{display:block;font-size:12px}
+.btn{border:none;border-radius:999px;padding:12px 24px;font-size:15px;font-weight:700;font-family:inherit}
+.btn.p{background:var(--primary);color:#fff}
+.btn.s{background:#fff;color:var(--primary);border:2px solid var(--primary)}
+.btn.a{background:var(--accent);color:var(--navy)}
+.btn.g{background:#EDF1EF;color:var(--muted)}
+.chip{display:inline-flex;align-items:center;gap:6px;border-radius:999px;padding:7px 14px;font-size:13px;font-weight:700}
+.chip.join{background:#E2F3EE;color:var(--primary-d)}
+.chip.maybe{background:#FBF0DC;color:#9A6B14}
+.chip.no{background:#EDF1EF;color:var(--muted)}
+.chip .dot{width:8px;height:8px;border-radius:50%}
+.join .dot{background:var(--primary)}
+.maybe .dot{background:var(--amber)}
+.no .dot{background:var(--gray)}
+.type div{margin-bottom:10px}
+.card{background:#fff;border:1px solid var(--line);border-radius:var(--r);padding:16px 20px;width:280px}
+.score{background:var(--navy);color:#fff;border-radius:var(--r);padding:16px 20px;width:200px;text-align:center}
+.score b{font-size:44px;color:var(--accent);font-variant-numeric:tabular-nums}
+</style>
+</head>
+<body>
+<h1>ピックルボール Chennai — デザイントークン</h1>
+<p class="sub">屋外・日差しの下でも読める高コントラスト。コートグリーン × ボールのライムイエロー</p>
+
+<h2>カラー</h2>
+<div class="row">
+  <div class="sw"><div class="c" style="background:#0E7C63"></div><div class="l"><b>Primary</b>#0E7C63<br>コートグリーン / 主要アクション</div></div>
+  <div class="sw"><div class="c" style="background:#D8EC3F"></div><div class="l"><b>Accent</b>#D8EC3F<br>ボールライム / 強調・スコア</div></div>
+  <div class="sw"><div class="c" style="background:#122B33"></div><div class="l"><b>Navy</b>#122B33<br>スコアボード背景</div></div>
+  <div class="sw"><div class="c" style="background:#14211C"></div><div class="l"><b>Ink</b>#14211C<br>本文テキスト</div></div>
+  <div class="sw"><div class="c" style="background:#E8A93C"></div><div class="l"><b>Amber</b>#E8A93C<br>未定・注意</div></div>
+  <div class="sw"><div class="c" style="background:#F4F7F5;border-bottom:1px solid #E2EAE5"></div><div class="l"><b>BG</b>#F4F7F5<br>画面背景</div></div>
+</div>
+
+<h2>タイポグラフィ</h2>
+<div class="type">
+  <div style="font-size:26px;font-weight:800">画面タイトル 26px Bold</div>
+  <div style="font-size:17px;font-weight:700">セクション見出し 17px Bold</div>
+  <div style="font-size:15px">本文 15px Regular — 出欠やコート情報など</div>
+  <div style="font-size:12px;color:#5F6E67">補足 12px Muted — 日時・注記</div>
+</div>
+
+<h2>ボタン / 出欠チップ</h2>
+<div class="row" style="align-items:center">
+  <button class="btn p">参加する</button>
+  <button class="btn s">編集</button>
+  <button class="btn a">WhatsAppで共有</button>
+  <button class="btn g">キャンセル</button>
+  <span class="chip join"><span class="dot"></span>参加</span>
+  <span class="chip maybe"><span class="dot"></span>未定</span>
+  <span class="chip no"><span class="dot"></span>不参加</span>
+</div>
+
+<h2>カード / スコア表示</h2>
+<div class="row">
+  <div class="card">
+    <div style="font-size:12px;color:#5F6E67;font-weight:700">次回の活動日</div>
+    <div style="font-size:22px;font-weight:800;margin:4px 0">7/26 (土) 6:30–9:00</div>
+    <div style="font-size:13px;color:#5F6E67">Marina Sports Arena・参加 12名</div>
+  </div>
+  <div class="score">
+    <div style="font-size:11px;opacity:.7">スコアコール</div>
+    <b>7 - 5 - 2</b>
+  </div>
+</div>
+</body>
+</html>

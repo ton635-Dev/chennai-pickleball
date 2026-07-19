@@ -1,0 +1,48 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root {
+  --bg: #f4f7f5;
+  --surface: #ffffff;
+  --ink: #14211c;
+  --muted: #5f6e67;
+  --line: #e2eae5;
+  --primary: #0e7c63;
+  --primary-d: #0a5c4a;
+  --accent: #d8ec3f;
+  --navy: #122b33;
+  --navy2: #0c1f26;
+  --amber: #e8a93c;
+  --gray: #9aa8a2;
+}
+
+html,
+body {
+  background: var(--bg);
+  color: var(--ink);
+  font-family: "Hiragino Kaku Gothic ProN", "Noto Sans JP", system-ui, sans-serif;
+  -webkit-tap-highlight-color: transparent;
+}
+
+/* 数字はタブラー(スコア・日付揃え) */
+.tabnum {
+  font-variant-numeric: tabular-nums;
+}
+
+/* iOS で入力欄ズームしないように */
+input,
+textarea,
+select,
+button {
+  font-family: inherit;
+}
+
+@layer components {
+  .btn-pill {
+    @apply rounded-pill font-bold;
+  }
+  .card {
+    @apply rounded-card border border-line bg-surface;
+  }
+}
