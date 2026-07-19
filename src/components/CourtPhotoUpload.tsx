@@ -21,6 +21,7 @@ export function CourtPhotoUpload({
   const inputRef = useRef<HTMLInputElement>(null);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [confirmPhoto, setConfirmPhoto] = useState<CourtPhoto | null>(null);
 
   const onFiles = async (files: FileList | null) => {
     if (!files || files.length === 0) return;
@@ -52,7 +53,9 @@ export function CourtPhotoUpload({
     }
   };
 
-  const remove = async (photo: CourtPhoto) => {
+  const remove = async () => {
+    const photo = confirmPhoto;
+    if (!photo) return;
     const sb = getBrowserSupabase();
     if (!sb) return;
     setBusy(true);
@@ -61,6 +64,7 @@ export function CourtPhotoUpload({
         await sb.storage.from(BUCKET).remove([photo.storage_path]);
       }
       await deleteCourtPhoto(photo.id, courtId);
+      setConfirmPhoto(null);
       router.refresh();
     } finally {
       setBusy(false);
@@ -97,7 +101,7 @@ export function CourtPhotoUpload({
       ) : (
         <div className="grid grid-cols-3 gap-2">
           {photos.map((p) => (
-            <div key={p.id} className="group relative aspect-square">
+            <div key={p.id} className="relative aspect-square">
               {/* eslint-disable-next-line @next/next/no-img-element */}
               <img
                 src={p.url}
@@ -105,15 +109,46 @@ export function CourtPhotoUpload({
                 className="h-full w-full rounded-lg object-cover"
               />
               <button
-                onClick={() => remove(p)}
+                onClick={() => setConfirmPhoto(p)}
                 disabled={busy}
-                className="absolute right-1 top-1 flex h-6 w-6 items-center justify-center rounded-full bg-black/60 text-xs text-white"
+                className="absolute right-1.5 top-1.5 flex h-8 w-8 items-center justify-center rounded-full bg-black/65 text-base text-white shadow"
                 aria-label="写真を削除"
               >
-                ✕
+                🗑
               </button>
             </div>
           ))}
+        </div>
+      )}
+
+      {confirmPhoto && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4">
+          <div className="card w-full max-w-xs p-5 text-center">
+            {/* eslint-disable-next-line @next/next/no-img-element */}
+            <img
+              src={confirmPhoto.url}
+              alt="削除する写真"
+              className="mx-auto mb-3 h-28 w-28 rounded-lg object-cover"
+            />
+            <p className="text-[15px] font-bold">この写真を削除しますか?</p>
+            <p className="mt-1 text-xs text-muted">元に戻せません。</p>
+            <div className="mt-4 flex gap-2">
+              <button
+                onClick={() => setConfirmPhoto(null)}
+                disabled={busy}
+                className="btn-pill flex-1 border border-line bg-surface py-2.5 text-sm text-muted"
+              >
+                キャンセル
+              </button>
+              <button
+                onClick={remove}
+                disabled={busy}
+                className="btn-pill flex-1 bg-red-600 py-2.5 text-sm text-white disabled:opacity-50"
+              >
+                {busy ? "削除中…" : "削除する"}
+              </button>
+            </div>
+          </div>
         </div>
       )}
     </div>
