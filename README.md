@@ -29,7 +29,14 @@
 - **ルール学習** — 7章の学習ページ+SVG図解、章末クイズ(3択5問・全問正解でバッジ)、ルール早見表。進捗は端末ローカルに保存(DB不要)
 
 > Phase 2 のコート機能を使うには、`supabase/phase2-courts.sql` の実行が必要です(下記セットアップ参照)。
-> 大会管理は Phase 3 です(`大会`タブはプレースホルダ)。
+
+## Phase 3 の実装範囲
+
+- **大会管理** — トーナメント(シングルエリミ・シード/BYE自動配置)/ リーグ戦(総当たり)の作成、参加者登録(活動日の参加者から/手動)、組み合わせ自動生成
+- **進行・結果** — 試合カードから結果入力 → 勝者自動判定、トーナメントは勝ち上がり自動反映、決勝/全試合終了で優勝者を自動記録
+- **表示** — トーナメント表(ラウンド列・横スクロール・次の試合)、リーグ星取表+順位表(勝数→得失点差)、大会一覧(開催中/過去・優勝者履歴)
+
+> Phase 3 を使うには `supabase/phase3-tournaments.sql` の実行が必要です。
 
 ## 技術構成
 
@@ -54,6 +61,7 @@ npm install
 2. ダッシュボードの **SQL Editor** を開き、`supabase/schema.sql` の内容を貼り付けて **Run**
    - テーブル(members / events / attendances / matches / audit_logs)、Realtime、RLSポリシーが一括で作成されます
    - 続けて `supabase/phase2-courts.sql` も **Run**(コート関連テーブル・評価項目・写真用Storageバケットを作成)
+   - 続けて `supabase/phase3-tournaments.sql` も **Run**(大会・エントリー・組み合わせテーブルを作成)
 3. **Project Settings > API** から以下をコピー
    - `Project URL`
    - `anon public` キー
