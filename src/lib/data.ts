@@ -13,6 +13,9 @@ import type {
   MatchRow,
   Member,
   ReviewItem,
+  Tournament,
+  TournamentEntry,
+  TournamentMatch,
 } from "./types";
 import { isUpcoming } from "./format";
 
@@ -342,4 +345,71 @@ export async function getPlayerStats(): Promise<PlayerStat[]> {
       };
     })
     .sort((a, b) => b.wins - a.wins || b.winRate - a.winRate || a.name.localeCompare(b.name));
+}
+
+// ---------------------------------------------------------------------
+// 大会
+// ---------------------------------------------------------------------
+
+export interface TournamentSummary extends Tournament {
+  entryCount: number;
+}
+
+/** 大会一覧(アーカイブ以外・新しい順)+ 参加数 */
+export async function getTournaments(): Promise<TournamentSummary[]> {
+  const sb = getServerSupabase();
+  if (!sb) return [];
+  const { data: ts } = await sb
+    .from("tournaments")
+    .select("*")
+    .eq("archived", false)
+    .order("created_at", { ascending: false });
+  if (!ts || ts.length === 0) return [];
+  const ids = (ts as Tournament[]).map((t) => t.id);
+  const { data: entries } = await sb
+    .from("tournament_entries")
+    .select("tournament_id")
+    .in("tournament_id", ids);
+  const counts = new Map<string, number>();
+  for (const e of (entries as { tournament_id: string }[]) ?? []) {
+    counts.set(e.tournament_id, (counts.get(e.tournament_id) ?? 0) + 1);
+  }
+  return (ts as Tournament[]).map((t) => ({
+    ...t,
+    entryCount: counts.get(t.id) ?? 0,
+  }));
+}
+
+export interface TournamentDetail {
+  tournament: Tournament;
+  entries: TournamentEntry[];
+  matches: TournamentMatch[];
+}
+
+export async function getTournamentDetail(
+  id: string
+): Promise<TournamentDetail | null> {
+  const sb = getServerSupabase();
+  if (!sb) return null;
+  const [{ data: t }, { data: entries }, { data: matches }] = await Promise.all([
+    sb.from("tournaments").select("*").eq("id", id).maybeSingle(),
+    sb
+      .from("tournament_entries")
+      .select("*")
+      .eq("tournament_id", id)
+      .order("seed", { ascending: true, nullsFirst: false })
+      .order("created_at", { ascending: true }),
+    sb
+      .from("tournament_matches")
+      .select("*")
+      .eq("tournament_id", id)
+      .order("round", { ascending: true })
+      .order("position", { ascending: true }),
+  ]);
+  if (!t) return null;
+  return {
+    tournament: t as Tournament,
+    entries: (entries as TournamentEntry[]) ?? [],
+    matches: (matches as TournamentMatch[]) ?? [],
+  };
 }

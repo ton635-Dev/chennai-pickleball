@@ -2,7 +2,17 @@
 
 import { revalidatePath } from "next/cache";
 import { getServerSupabase } from "@/lib/supabase/server";
-import type { AttendanceStatus } from "@/lib/types";
+import type {
+  AttendanceStatus,
+  TournamentEntry,
+  TournamentFormat,
+  TournamentMatch,
+} from "@/lib/types";
+import {
+  generateRoundRobin,
+  generateSingleElim,
+  computeStandings,
+} from "@/lib/tournament";
 
 class NotConfiguredError extends Error {
   constructor() {
@@ -365,4 +375,227 @@ export async function deleteMatch(id: string, memberId: string | null) {
   await log("match", id, memberId, "delete", "試合結果を削除");
   revalidatePath("/");
   revalidatePath("/matches");
+}
+
+// ---------------------------------------------------------------------
+// 大会
+// ---------------------------------------------------------------------
+export interface TournamentInput {
+  name: string;
+  format: TournamentFormat;
+  discipline: "singles" | "doubles";
+  event_id?: string | null;
+}
+
+export async function createTournament(
+  input: TournamentInput,
+  createdBy: string | null
+) {
+  if (!input.name.trim()) throw new Error("大会名を入力してください");
+  const { data, error } = await sb()
+    .from("tournaments")
+    .insert({
+      name: input.name.trim(),
+      format: input.format,
+      discipline: input.discipline,
+      event_id: input.event_id || null,
+      status: "draft",
+      created_by: createdBy,
+    })
+    .select("id")
+    .single();
+  if (error) throw new Error(error.message);
+  await log("tournament", data.id, createdBy, "create", "大会を作成");
+  revalidatePath("/tournaments");
+  return data.id as string;
+}
+
+export async function addTournamentEntries(
+  tournamentId: string,
+  names: string[]
+) {
+  const rows = names
+    .map((n) => n.trim())
+    .filter(Boolean)
+    .map((name) => ({ tournament_id: tournamentId, name }));
+  if (rows.length === 0) return;
+  const { error } = await sb().from("tournament_entries").insert(rows);
+  if (error) throw new Error(error.message);
+  revalidatePath(`/tournaments/${tournamentId}`);
+}
+
+export async function deleteTournamentEntry(entryId: string, tournamentId: string) {
+  const { error } = await sb()
+    .from("tournament_entries")
+    .delete()
+    .eq("id", entryId);
+  if (error) throw new Error(error.message);
+  revalidatePath(`/tournaments/${tournamentId}`);
+}
+
+/** 組み合わせを生成して開催中にする(既存の試合は作り直す) */
+export async function generateBracket(tournamentId: string, memberId: string | null) {
+  const client = sb();
+  const { data: t, error: te } = await client
+    .from("tournaments")
+    .select("id, format")
+    .eq("id", tournamentId)
+    .single();
+  if (te || !t) throw new Error("大会が見つかりません");
+
+  const { data: entries } = await client
+    .from("tournament_entries")
+    .select("id, seed, created_at")
+    .eq("tournament_id", tournamentId)
+    .order("seed", { ascending: true, nullsFirst: false })
+    .order("created_at", { ascending: true });
+  const list = (entries as Pick<TournamentEntry, "id">[]) ?? [];
+  if (list.length < 2) throw new Error("参加者を2組以上登録してください");
+
+  const ids = list.map((e) => e.id);
+  const gen =
+    t.format === "single_elim"
+      ? generateSingleElim(ids)
+      : generateRoundRobin(ids);
+
+  // 既存の試合を削除して作り直し
+  await client.from("tournament_matches").delete().eq("tournament_id", tournamentId);
+  const rows = gen.map((m) => ({
+    tournament_id: tournamentId,
+    round: m.round,
+    position: m.position,
+    entry1_id: m.entry1_id,
+    entry2_id: m.entry2_id,
+    winner_entry_id: m.winner_entry_id,
+    status: m.status,
+  }));
+  const { error } = await client.from("tournament_matches").insert(rows);
+  if (error) throw new Error(error.message);
+  await client
+    .from("tournaments")
+    .update({ status: "ongoing", champion: null, updated_at: new Date().toISOString() })
+    .eq("id", tournamentId);
+  await log("tournament", tournamentId, memberId, "generate", "組み合わせを生成");
+  revalidatePath(`/tournaments/${tournamentId}`);
+  revalidatePath("/tournaments");
+}
+
+/** 試合結果を入力(勝者判定・トーナメントは勝ち上がり反映) */
+export async function setTournamentMatchResult(
+  matchId: string,
+  score1: number,
+  score2: number,
+  memberId: string | null
+) {
+  const client = sb();
+  const { data: m, error: me } = await client
+    .from("tournament_matches")
+    .select("*")
+    .eq("id", matchId)
+    .single();
+  if (me || !m) throw new Error("試合が見つかりません");
+  const match = m as TournamentMatch;
+  if (!match.entry1_id || !match.entry2_id)
+    throw new Error("対戦相手が未確定です");
+
+  const winner =
+    score1 === score2 ? null : score1 > score2 ? match.entry1_id : match.entry2_id;
+  if (!winner) throw new Error("引き分けは記録できません(2点差で決着)");
+
+  await client
+    .from("tournament_matches")
+    .update({ score1, score2, winner_entry_id: winner, status: "done" })
+    .eq("id", matchId);
+
+  const { data: t } = await client
+    .from("tournaments")
+    .select("id, format")
+    .eq("id", match.tournament_id)
+    .single();
+
+  if (t?.format === "single_elim") {
+    const { data: maxRow } = await client
+      .from("tournament_matches")
+      .select("round")
+      .eq("tournament_id", match.tournament_id)
+      .order("round", { ascending: false })
+      .limit(1)
+      .single();
+    const maxRound = (maxRow?.round as number) ?? match.round;
+    if (match.round < maxRound) {
+      const nextPos = Math.floor(match.position / 2);
+      const { data: nm } = await client
+        .from("tournament_matches")
+        .select("id")
+        .eq("tournament_id", match.tournament_id)
+        .eq("round", match.round + 1)
+        .eq("position", nextPos)
+        .single();
+      if (nm) {
+        const slot =
+          match.position % 2 === 0
+            ? { entry1_id: winner }
+            : { entry2_id: winner };
+        await client.from("tournament_matches").update(slot).eq("id", nm.id);
+      }
+    } else {
+      // 決勝 → 優勝者確定
+      const { data: champ } = await client
+        .from("tournament_entries")
+        .select("name")
+        .eq("id", winner)
+        .single();
+      await client
+        .from("tournaments")
+        .update({
+          champion: champ?.name ?? null,
+          status: "done",
+          updated_at: new Date().toISOString(),
+        })
+        .eq("id", match.tournament_id);
+    }
+  } else if (t?.format === "round_robin") {
+    // 全試合終了なら優勝者(順位1位)を記録
+    const [{ data: allMatches }, { data: entries }] = await Promise.all([
+      client.from("tournament_matches").select("*").eq("tournament_id", match.tournament_id),
+      client.from("tournament_entries").select("id, name").eq("tournament_id", match.tournament_id),
+    ]);
+    const ms = (allMatches as TournamentMatch[]) ?? [];
+    if (ms.length > 0 && ms.every((x) => x.status === "done")) {
+      const ents = (entries as { id: string; name: string }[]) ?? [];
+      const standings = computeStandings(
+        ents.map((e) => e.id),
+        ms
+      );
+      const topId = standings[0]?.entryId;
+      const champname = ents.find((e) => e.id === topId)?.name ?? null;
+      await client
+        .from("tournaments")
+        .update({ champion: champname, status: "done", updated_at: new Date().toISOString() })
+        .eq("id", match.tournament_id);
+    }
+  }
+
+  await log("tournament", match.tournament_id, memberId, "result", "試合結果を入力");
+  revalidatePath(`/tournaments/${match.tournament_id}`);
+  revalidatePath("/tournaments");
+}
+
+export async function setMatchCourt(matchId: string, court: string, tournamentId: string) {
+  const { error } = await sb()
+    .from("tournament_matches")
+    .update({ court: court || null })
+    .eq("id", matchId);
+  if (error) throw new Error(error.message);
+  revalidatePath(`/tournaments/${tournamentId}`);
+}
+
+export async function archiveTournament(id: string, memberId: string | null) {
+  const { error } = await sb()
+    .from("tournaments")
+    .update({ archived: true, updated_at: new Date().toISOString() })
+    .eq("id", id);
+  if (error) throw new Error(error.message);
+  await log("tournament", id, memberId, "archive", "大会をアーカイブ");
+  revalidatePath("/tournaments");
 }

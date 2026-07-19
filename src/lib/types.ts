@@ -51,6 +51,48 @@ export interface EventWithAttendance extends EventRow {
   counts: Record<AttendanceStatus, number>;
 }
 
+export type TournamentFormat = "single_elim" | "round_robin";
+export type TournamentStatus = "draft" | "ongoing" | "done";
+
+export interface Tournament {
+  id: string;
+  name: string;
+  event_id: string | null;
+  format: TournamentFormat;
+  discipline: "singles" | "doubles";
+  status: TournamentStatus;
+  champion: string | null;
+  created_by: string | null;
+  archived: boolean;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface TournamentEntry {
+  id: string;
+  tournament_id: string;
+  name: string;
+  seed: number | null;
+  member1_id: string | null;
+  member2_id: string | null;
+  created_at: string;
+}
+
+export interface TournamentMatch {
+  id: string;
+  tournament_id: string;
+  round: number;
+  position: number;
+  entry1_id: string | null;
+  entry2_id: string | null;
+  score1: number | null;
+  score2: number | null;
+  winner_entry_id: string | null;
+  status: "pending" | "done";
+  court: string | null;
+  created_at: string;
+}
+
 export interface CourtRow {
   id: string;
   name: string;
