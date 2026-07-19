@@ -8,9 +8,12 @@ const PRESETS = [7, 11, 15];
 export function ScoreboardSetup() {
   const router = useRouter();
   const [mode, setMode] = useState<"singles" | "doubles">("doubles");
-  const [target, setTarget] = useState(11);
+  // 点数は編集中に空欄を許すため文字列で保持し、開始時に数値化する
+  const [targetText, setTargetText] = useState("11");
   const [t1, setT1] = useState<string[]>(["", ""]);
   const [t2, setT2] = useState<string[]>(["", ""]);
+
+  const targetNum = Math.max(1, parseInt(targetText, 10) || 11);
 
   const names = (arr: string[]) =>
     (mode === "doubles" ? arr : arr.slice(0, 1))
@@ -22,7 +25,7 @@ export function ScoreboardSetup() {
     const n2 = names(t2);
     const params = new URLSearchParams({
       mode,
-      target: String(target),
+      target: String(targetNum),
       t1: n1.join(","),
       t2: n2.join(","),
     });
@@ -67,9 +70,9 @@ export function ScoreboardSetup() {
             {PRESETS.map((p) => (
               <button
                 key={p}
-                onClick={() => setTarget(p)}
+                onClick={() => setTargetText(String(p))}
                 className={`flex-1 rounded-xl border-2 py-2.5 text-sm font-extrabold ${
-                  target === p
+                  parseInt(targetText, 10) === p
                     ? "border-primary bg-primary text-white"
                     : "border-line bg-surface text-muted"
                 }`}
@@ -78,10 +81,18 @@ export function ScoreboardSetup() {
               </button>
             ))}
             <input
-              type="number"
-              min={1}
-              value={target}
-              onChange={(e) => setTarget(Math.max(1, Number(e.target.value) || 1))}
+              type="text"
+              inputMode="numeric"
+              value={targetText}
+              onChange={(e) =>
+                setTargetText(e.target.value.replace(/[^0-9]/g, "").slice(0, 3))
+              }
+              onBlur={() => {
+                if (!targetText || parseInt(targetText, 10) < 1)
+                  setTargetText("11");
+              }}
+              placeholder="11"
+              aria-label="ゲーム点数(任意)"
               className="w-20 rounded-xl border border-line bg-bg px-3 py-2.5 text-center text-sm font-extrabold outline-none focus:border-primary"
             />
           </div>
