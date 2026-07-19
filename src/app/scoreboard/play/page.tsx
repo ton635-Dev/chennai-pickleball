@@ -10,6 +10,7 @@ export default async function PlayPage({
     target?: string;
     t1?: string;
     t2?: string;
+    event?: string;
   }>;
 }) {
   const sp = await searchParams;
@@ -27,6 +28,7 @@ export default async function PlayPage({
       target={target}
       team1={parse(sp.t1)}
       team2={parse(sp.t2)}
+      eventId={sp.event || null}
     />
   );
 }

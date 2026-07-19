@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
-import { getEventWithAttendance } from "@/lib/data";
+import { getEventWithAttendance, getMatchesForEvent } from "@/lib/data";
+import { MatchRow } from "@/components/MatchRow";
 import {
   formatDateJa,
   formatTimeRange,
@@ -30,7 +31,10 @@ export default async function EventDetailPage({
   params: Promise<{ id: string }>;
 }) {
   const { id } = await params;
-  const ev = await getEventWithAttendance(id);
+  const [ev, matches] = await Promise.all([
+    getEventWithAttendance(id),
+    getMatchesForEvent(id),
+  ]);
   if (!ev || ev.archived) notFound();
 
   const appUrl = getAppUrl();
@@ -160,6 +164,18 @@ export default async function EventDetailPage({
           })
         )}
       </div>
+
+      {/* この活動日の試合 */}
+      {matches.length > 0 && (
+        <div className="card mt-3 p-4">
+          <h2 className="mb-1 text-sm font-extrabold text-muted">
+            この活動日の試合({matches.length}件)
+          </h2>
+          {matches.map((m) => (
+            <MatchRow key={m.id} match={m} showDelete={false} />
+          ))}
+        </div>
+      )}
     </div>
   );
 }

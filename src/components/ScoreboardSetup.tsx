@@ -5,13 +5,23 @@ import { useRouter } from "next/navigation";
 
 const PRESETS = [3, 5, 11];
 
-export function ScoreboardSetup() {
+export interface EventOption {
+  id: string;
+  label: string;
+}
+
+interface Props {
+  events?: EventOption[];
+  memberNames?: string[];
+}
+
+export function ScoreboardSetup({ events = [], memberNames = [] }: Props) {
   const router = useRouter();
   const [mode, setMode] = useState<"singles" | "doubles">("doubles");
-  // 点数は編集中に空欄を許すため文字列で保持し、開始時に数値化する
   const [targetText, setTargetText] = useState("11");
   const [t1, setT1] = useState<string[]>(["", ""]);
   const [t2, setT2] = useState<string[]>(["", ""]);
+  const [eventId, setEventId] = useState("");
 
   const targetNum = Math.max(1, parseInt(targetText, 10) || 11);
 
@@ -21,14 +31,13 @@ export function ScoreboardSetup() {
       .filter(Boolean);
 
   const start = () => {
-    const n1 = names(t1);
-    const n2 = names(t2);
     const params = new URLSearchParams({
       mode,
       target: String(targetNum),
-      t1: n1.join(","),
-      t2: n2.join(","),
+      t1: names(t1).join(","),
+      t2: names(t2).join(","),
     });
+    if (eventId) params.set("event", eventId);
     router.push(`/scoreboard/play?${params.toString()}`);
   };
 
@@ -41,6 +50,13 @@ export function ScoreboardSetup() {
       <p className="mb-5 text-sm text-muted">
         サイドアウト式。ラリーに勝った側をタップするだけで、サーブ権・サーバー番号・サイドアウトは自動判定します。
       </p>
+
+      {/* メンバー名の候補(オートコンプリート用) */}
+      <datalist id="member-names">
+        {memberNames.map((n) => (
+          <option key={n} value={n} />
+        ))}
+      </datalist>
 
       <div className="card space-y-5 p-4">
         {/* 種目 */}
@@ -110,6 +126,7 @@ export function ScoreboardSetup() {
               </div>
               <div className="flex gap-2">
                 <input
+                  list="member-names"
                   value={t1[0]}
                   onChange={(e) => setT1([e.target.value, t1[1]])}
                   placeholder="選手A"
@@ -117,6 +134,7 @@ export function ScoreboardSetup() {
                 />
                 {mode === "doubles" && (
                   <input
+                    list="member-names"
                     value={t1[1]}
                     onChange={(e) => setT1([t1[0], e.target.value])}
                     placeholder="選手B"
@@ -131,6 +149,7 @@ export function ScoreboardSetup() {
               </div>
               <div className="flex gap-2">
                 <input
+                  list="member-names"
                   value={t2[0]}
                   onChange={(e) => setT2([e.target.value, t2[1]])}
                   placeholder="選手C"
@@ -138,6 +157,7 @@ export function ScoreboardSetup() {
                 />
                 {mode === "doubles" && (
                   <input
+                    list="member-names"
                     value={t2[1]}
                     onChange={(e) => setT2([t2[0], e.target.value])}
                     placeholder="選手D"
@@ -148,6 +168,27 @@ export function ScoreboardSetup() {
             </div>
           </div>
         </div>
+
+        {/* 活動日に紐づけ(任意) */}
+        {events.length > 0 && (
+          <div>
+            <div className="mb-2 text-[13px] font-bold text-muted">
+              活動日に紐づけ(任意・保存時に記録)
+            </div>
+            <select
+              value={eventId}
+              onChange={(e) => setEventId(e.target.value)}
+              className={input}
+            >
+              <option value="">紐づけない</option>
+              {events.map((ev) => (
+                <option key={ev.id} value={ev.id}>
+                  {ev.label}
+                </option>
+              ))}
+            </select>
+          </div>
+        )}
 
         <button
           onClick={start}

@@ -263,3 +263,83 @@ export async function getRecentMatches(limit = 5): Promise<MatchRow[]> {
     .limit(limit);
   return (data as MatchRow[]) ?? [];
 }
+
+export interface MatchWithEvent extends MatchRow {
+  event: { id: string; event_date: string; place_name: string | null } | null;
+}
+
+/** 試合履歴(活動日情報つき・新しい順) */
+export async function getMatches(limit = 200): Promise<MatchWithEvent[]> {
+  const sb = getServerSupabase();
+  if (!sb) return [];
+  const { data } = await sb
+    .from("matches")
+    .select("*, event:events(id, event_date, place_name)")
+    .order("created_at", { ascending: false })
+    .limit(limit);
+  return (data as MatchWithEvent[]) ?? [];
+}
+
+/** 特定の活動日に紐づく試合 */
+export async function getMatchesForEvent(eventId: string): Promise<MatchRow[]> {
+  const sb = getServerSupabase();
+  if (!sb) return [];
+  const { data } = await sb
+    .from("matches")
+    .select("*")
+    .eq("event_id", eventId)
+    .order("created_at", { ascending: false });
+  return (data as MatchRow[]) ?? [];
+}
+
+export interface PlayerStat {
+  name: string;
+  wins: number;
+  losses: number;
+  games: number;
+  winRate: number; // 0-100
+}
+
+/**
+ * 選手名ベースの戦績集計(勝敗が記録された試合のみ)。
+ * スコアボードは表示名の自由入力のため、名前文字列で集計する。
+ */
+export async function getPlayerStats(): Promise<PlayerStat[]> {
+  const sb = getServerSupabase();
+  if (!sb) return [];
+  const { data } = await sb
+    .from("matches")
+    .select("team1_names, team2_names, winner")
+    .not("winner", "is", null);
+  const rows = (data as Pick<
+    MatchRow,
+    "team1_names" | "team2_names" | "winner"
+  >[]) ?? [];
+
+  const stats = new Map<string, { wins: number; losses: number }>();
+  const bump = (name: string, win: boolean) => {
+    const key = name.trim();
+    if (!key) return;
+    const s = stats.get(key) ?? { wins: 0, losses: 0 };
+    if (win) s.wins += 1;
+    else s.losses += 1;
+    stats.set(key, s);
+  };
+  for (const m of rows) {
+    const t1win = m.winner === 1;
+    for (const n of m.team1_names ?? []) bump(n, t1win);
+    for (const n of m.team2_names ?? []) bump(n, !t1win);
+  }
+  return Array.from(stats.entries())
+    .map(([name, s]) => {
+      const games = s.wins + s.losses;
+      return {
+        name,
+        wins: s.wins,
+        losses: s.losses,
+        games,
+        winRate: games > 0 ? Math.round((s.wins / games) * 100) : 0,
+      };
+    })
+    .sort((a, b) => b.wins - a.wins || b.winRate - a.winRate || a.name.localeCompare(b.name));
+}

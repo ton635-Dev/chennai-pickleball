@@ -169,7 +169,12 @@ export default async function HomePage() {
       {/* 最近の試合 */}
       <div>
         <div className="card p-4">
-          <h2 className="mb-2.5 text-sm font-extrabold text-muted">最近の試合</h2>
+          <div className="mb-2.5 flex items-center justify-between">
+            <h2 className="text-sm font-extrabold text-muted">最近の試合</h2>
+            <Link href="/matches" className="text-xs font-bold text-primary">
+              すべて見る
+            </Link>
+          </div>
           {recent.length === 0 ? (
             <p className="py-4 text-center text-xs text-muted">
               保存された試合結果はまだありません

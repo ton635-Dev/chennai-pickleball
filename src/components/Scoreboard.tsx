@@ -19,9 +19,10 @@ interface Props {
   target: number;
   team1: string[];
   team2: string[];
+  eventId?: string | null;
 }
 
-export function Scoreboard({ mode, target, team1, team2 }: Props) {
+export function Scoreboard({ mode, target, team1, team2, eventId }: Props) {
   const router = useRouter();
   const { member } = useMember();
   const config: GameConfig = useMemo(() => ({ mode, target }), [mode, target]);
@@ -165,6 +166,7 @@ export function Scoreboard({ mode, target, team1, team2 }: Props) {
           onSave={async () => {
             await saveMatch(
               {
+                event_id: eventId ?? null,
                 mode,
                 team1_names: names[0],
                 team2_names: names[1],

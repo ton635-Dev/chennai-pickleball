@@ -354,5 +354,15 @@ export async function saveMatch(input: MatchInput, createdBy: string | null) {
   if (error) throw new Error(error.message);
   await log("match", data.id, createdBy, "create", "試合結果を保存");
   revalidatePath("/");
+  revalidatePath("/matches");
+  if (input.event_id) revalidatePath(`/events/${input.event_id}`);
   return data.id as string;
+}
+
+export async function deleteMatch(id: string, memberId: string | null) {
+  const { error } = await sb().from("matches").delete().eq("id", id);
+  if (error) throw new Error(error.message);
+  await log("match", id, memberId, "delete", "試合結果を削除");
+  revalidatePath("/");
+  revalidatePath("/matches");
 }
