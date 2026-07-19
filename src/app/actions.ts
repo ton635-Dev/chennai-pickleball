@@ -480,6 +480,54 @@ export async function generateBracket(tournamentId: string, memberId: string | n
   revalidatePath("/tournaments");
 }
 
+/**
+ * 1回戦の組み合わせ入れ替え(2エントリーの配置を交換)。
+ * シード順を入れ替えて再生成するため、不戦勝(BYE)の枠も正しく追従する。
+ * 結果が1件でも入力済みの場合は不可。
+ */
+export async function swapTournamentEntries(
+  tournamentId: string,
+  entryIdA: string,
+  entryIdB: string,
+  memberId: string | null
+) {
+  const client = sb();
+
+  // 実試合(両者確定)の結果が入力済みなら変更不可。BYE(片側のみ)は対象外
+  const { data: ms } = await client
+    .from("tournament_matches")
+    .select("entry1_id, entry2_id, status")
+    .eq("tournament_id", tournamentId);
+  const played = (
+    (ms as Pick<TournamentMatch, "entry1_id" | "entry2_id" | "status">[]) ?? []
+  ).some((m) => m.status === "done" && m.entry1_id && m.entry2_id);
+  if (played)
+    throw new Error("結果の入力後は組み合わせを変更できません");
+
+  // 現在の並び(生成時と同じ順序)を取得し、AとBを入れ替えて seed を振り直す
+  const { data: entries } = await client
+    .from("tournament_entries")
+    .select("id")
+    .eq("tournament_id", tournamentId)
+    .order("seed", { ascending: true, nullsFirst: false })
+    .order("created_at", { ascending: true });
+  const order = ((entries as { id: string }[]) ?? []).map((e) => e.id);
+  const ia = order.indexOf(entryIdA);
+  const ib = order.indexOf(entryIdB);
+  if (ia < 0 || ib < 0) throw new Error("エントリーが見つかりません");
+  [order[ia], order[ib]] = [order[ib], order[ia]];
+  for (let i = 0; i < order.length; i++) {
+    await client
+      .from("tournament_entries")
+      .update({ seed: i + 1 })
+      .eq("id", order[i]);
+  }
+
+  await log("tournament", tournamentId, memberId, "swap", "組み合わせを入れ替え");
+  // 同じ順序ロジックで再生成(BYE解決込み)
+  await generateBracket(tournamentId, memberId);
+}
+
 /** 試合結果を入力(勝者判定・トーナメントは勝ち上がり反映) */
 export async function setTournamentMatchResult(
   matchId: string,

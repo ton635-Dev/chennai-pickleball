@@ -1,7 +1,10 @@
 "use client";
 
 import { useState } from "react";
+import { useRouter } from "next/navigation";
 import { roundName } from "@/lib/tournament";
+import { swapTournamentEntries } from "@/app/actions";
+import { useMember } from "./MemberProvider";
 import { MatchResultDialog } from "./MatchResultDialog";
 import type { Tournament, TournamentEntry, TournamentMatch } from "@/lib/types";
 
@@ -21,7 +24,15 @@ const BASE_H = 48;
 const FINAL_H = 66;
 
 export function BracketView({ tournament, entries, matches }: Props) {
+  const router = useRouter();
+  const { member } = useMember();
   const [dialog, setDialog] = useState<TournamentMatch | null>(null);
+  // 組み合わせ入れ替え(結果入力前のみ)
+  const [editOpen, setEditOpen] = useState(false);
+  const [selected, setSelected] = useState<string[]>([]);
+  const [swapBusy, setSwapBusy] = useState(false);
+  const [swapError, setSwapError] = useState<string | null>(null);
+
   const byId = new Map(entries.map((e) => [e.id, e.name]));
   const name = (id: string | null) => (id ? byId.get(id) ?? "?" : null);
 
@@ -90,6 +101,61 @@ export function BracketView({ tournament, entries, matches }: Props) {
   const roundDone = (r: number) =>
     matches.filter((m) => m.round === r).every((m) => m.status === "done");
   const nowRound = rounds.find((r) => !roundDone(r)) ?? finalRound;
+
+  // 組み合わせ入れ替え可否: 実試合(両者確定)の結果が1件も入っていない間だけ
+  const anyRealResult = matches.some(
+    (m) => m.status === "done" && m.entry1_id && m.entry2_id
+  );
+  const canSwap = tournament.status !== "done" && !anyRealResult;
+  const firstRoundMatches = matches
+    .filter((m) => m.round === rounds[0])
+    .sort((a, b) => a.position - b.position);
+
+  // 2組選んだら入れ替え実行
+  const toggleSelect = async (id: string) => {
+    if (swapBusy) return;
+    setSwapError(null);
+    if (selected.includes(id)) {
+      setSelected(selected.filter((x) => x !== id));
+      return;
+    }
+    const next = [...selected, id];
+    setSelected(next);
+    if (next.length < 2) return;
+    setSwapBusy(true);
+    try {
+      await swapTournamentEntries(
+        tournament.id,
+        next[0],
+        next[1],
+        member?.id ?? null
+      );
+      setSelected([]);
+      router.refresh();
+    } catch (e) {
+      setSwapError(e instanceof Error ? e.message : "入れ替えに失敗しました");
+      setSelected([]);
+    } finally {
+      setSwapBusy(false);
+    }
+  };
+
+  const EntryChip = ({ id }: { id: string }) => {
+    const sel = selected.includes(id);
+    return (
+      <button
+        onClick={() => toggleSelect(id)}
+        disabled={swapBusy}
+        className={`min-w-0 flex-1 truncate rounded-xl border-2 px-3 py-2.5 text-[13px] font-bold disabled:opacity-60 ${
+          sel
+            ? "border-primary bg-accent text-navy"
+            : "border-line bg-bg text-ink"
+        }`}
+      >
+        {byId.get(id) ?? "?"}
+      </button>
+    );
+  };
 
   const PlayerRow = ({
     nm,
@@ -241,6 +307,20 @@ export function BracketView({ tournament, entries, matches }: Props) {
         </button>
       )}
 
+      {/* 組み合わせ入れ替え(結果入力前のみ) */}
+      {canSwap && (
+        <button
+          onClick={() => {
+            setSelected([]);
+            setSwapError(null);
+            setEditOpen(true);
+          }}
+          className="btn-pill mb-3 w-full border-2 border-primary bg-surface py-2.5 text-[13px] font-extrabold text-primary"
+        >
+          ⇄ 組み合わせを入れ替える
+        </button>
+      )}
+
       {/* 縦型ブラケット */}
       <div className="rounded-card border border-line bg-surface p-3">
         <div className="overflow-x-auto">
@@ -298,6 +378,59 @@ export function BracketView({ tournament, entries, matches }: Props) {
       <p className="mt-2 text-center text-[11px] text-muted">
         試合カードをタップして結果を入力できます。
       </p>
+
+      {/* 入れ替えモーダル */}
+      {editOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4">
+          <div className="card max-h-[80vh] w-full max-w-sm overflow-y-auto p-5">
+            <h3 className="text-[15px] font-extrabold">組み合わせを入れ替える</h3>
+            <p className="mt-1 text-xs leading-relaxed text-muted">
+              入れ替えたい2組を順にタップすると、ブラケット上の位置が交換されます(不戦勝の枠も入れ替わります)。
+            </p>
+            <div className="mt-3 space-y-2.5">
+              {firstRoundMatches.map((m, i) => (
+                <div key={m.id} className="rounded-xl bg-bg p-2.5">
+                  <div className="mb-1.5 text-[10px] font-extrabold tracking-wide text-muted">
+                    試合{i + 1}
+                  </div>
+                  <div className="flex items-center gap-2">
+                    {m.entry1_id ? (
+                      <EntryChip id={m.entry1_id} />
+                    ) : (
+                      <span className="flex-1 rounded-xl border-2 border-dashed border-line px-3 py-2.5 text-center text-[12px] text-muted">
+                        不戦勝
+                      </span>
+                    )}
+                    <span className="shrink-0 text-[10px] font-extrabold text-muted">
+                      vs
+                    </span>
+                    {m.entry2_id ? (
+                      <EntryChip id={m.entry2_id} />
+                    ) : (
+                      <span className="flex-1 rounded-xl border-2 border-dashed border-line px-3 py-2.5 text-center text-[12px] text-muted">
+                        不戦勝
+                      </span>
+                    )}
+                  </div>
+                </div>
+              ))}
+            </div>
+            {swapError && <p className="mt-2 text-sm text-red-600">{swapError}</p>}
+            {swapBusy && (
+              <p className="mt-2 text-center text-xs text-muted">入れ替え中…</p>
+            )}
+            <button
+              onClick={() => {
+                setEditOpen(false);
+                setSelected([]);
+              }}
+              className="btn-pill mt-4 w-full border border-line bg-surface py-3 text-sm font-bold text-muted"
+            >
+              閉じる
+            </button>
+          </div>
+        </div>
+      )}
 
       {dialog && (
         <MatchResultDialog
