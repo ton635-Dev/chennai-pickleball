@@ -22,7 +22,14 @@
   - 活動日から告知テキストを自動生成 → `wa.me` でワンタップ共有 or コピー
   - 出欠の途中経過(参加者リスト)もテキスト化して共有
 
-> 大会管理・コート情報・ルール学習は Phase 2 以降です(`大会`タブはプレースホルダ)。
+## Phase 2 の実装範囲
+
+- **コート情報記録** — コート一覧/詳細/登録/編集、写真アップロード(Supabase Storage)、項目別5段階評価+コメント。活動日作成時にコートを選択で場所・地図を自動補完
+- **試合結果の保存・履歴** — スコアボードの結果を活動日に紐づけて保存、試合履歴一覧、選手名ベースの戦績集計、選手名オートコンプリート
+- **ルール学習** — 7章の学習ページ+SVG図解、章末クイズ(3択5問・全問正解でバッジ)、ルール早見表。進捗は端末ローカルに保存(DB不要)
+
+> Phase 2 のコート機能を使うには、`supabase/phase2-courts.sql` の実行が必要です(下記セットアップ参照)。
+> 大会管理は Phase 3 です(`大会`タブはプレースホルダ)。
 
 ## 技術構成
 
@@ -46,6 +53,7 @@ npm install
 1. [supabase.com](https://supabase.com) で無料プロジェクトを作成
 2. ダッシュボードの **SQL Editor** を開き、`supabase/schema.sql` の内容を貼り付けて **Run**
    - テーブル(members / events / attendances / matches / audit_logs)、Realtime、RLSポリシーが一括で作成されます
+   - 続けて `supabase/phase2-courts.sql` も **Run**(コート関連テーブル・評価項目・写真用Storageバケットを作成)
 3. **Project Settings > API** から以下をコピー
    - `Project URL`
    - `anon public` キー
