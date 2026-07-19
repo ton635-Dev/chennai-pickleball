@@ -4,6 +4,7 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { NAV_ITEMS } from "./nav-items";
 import { MeChip } from "./MeChip";
+import { PickleballIcon } from "./PickleballIcon";
 
 function isActive(pathname: string, href: string): boolean {
   if (href === "/") return pathname === "/";
@@ -23,7 +24,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
       <nav className="sticky top-0 z-30 hidden h-16 items-center gap-7 border-b border-line bg-surface px-8 md:flex">
         <Link href="/" className="flex items-center gap-2.5 text-[17px] font-extrabold">
           <span className="flex h-8 w-8 items-center justify-center rounded-[10px] bg-primary text-accent">
-            🏓
+            <PickleballIcon className="h-5 w-5" />
           </span>
           Chennai Pickleball
         </Link>
@@ -48,8 +49,8 @@ export function AppShell({ children }: { children: React.ReactNode }) {
       {/* モバイル: 上部ブランドヘッダー */}
       <header className="flex items-center justify-between px-5 pb-3 pt-5 md:hidden">
         <Link href="/" className="flex items-center gap-2 text-[17px] font-extrabold">
-          <span className="flex h-[30px] w-[30px] items-center justify-center rounded-[9px] bg-primary text-[15px] text-accent">
-            🏓
+          <span className="flex h-[30px] w-[30px] items-center justify-center rounded-[9px] bg-primary text-accent">
+            <PickleballIcon className="h-[18px] w-[18px]" />
           </span>
           Chennai Pickleball
         </Link>

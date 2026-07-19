@@ -1,8 +1,10 @@
 import Link from "next/link";
+import type { ReactNode } from "react";
+import { PickleballIcon } from "@/components/PickleballIcon";
 
-const QUICK: { icon: string; title: string; points: string[] }[] = [
+const QUICK: { icon: ReactNode; title: string; points: string[] }[] = [
   {
-    icon: "🎾",
+    icon: <PickleballIcon className="h-5 w-5 text-primary-dark" />,
     title: "サーブ",
     points: [
       "アンダーハンド・腰より下で打つ",

@@ -5,6 +5,7 @@ import { usePathname } from "next/navigation";
 import { useMember } from "./MemberProvider";
 import { createMember, listMembers } from "@/app/actions";
 import { initial } from "@/lib/format";
+import { PickleballIcon } from "./PickleballIcon";
 
 /**
  * メンバー未登録の端末に表示するゲート。
@@ -49,7 +50,7 @@ export function MemberGate() {
       <div className="card w-full max-w-sm p-6">
         <div className="mb-1 flex items-center gap-2 text-lg font-extrabold">
           <span className="flex h-8 w-8 items-center justify-center rounded-[9px] bg-primary text-accent">
-            🏓
+            <PickleballIcon className="h-5 w-5" />
           </span>
           Chennai Pickleball
         </div>

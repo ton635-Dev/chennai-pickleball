@@ -1,16 +1,22 @@
 "use client";
 
-import { useState } from "react";
+import { useState, type ReactNode } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useMember } from "./MemberProvider";
 import { updateMemberName, deleteMember } from "@/app/actions";
 import { Avatar } from "./bits";
+import { PickleballIcon } from "./PickleballIcon";
 import type { MemberStat } from "@/lib/data";
 
-const MENU: { href: string; icon: string; label: string; desc: string }[] = [
-  { href: "/courts", icon: "🎾", label: "コート情報", desc: "コートの登録・評価・写真" },
-  { href: "/matches", icon: "🏓", label: "試合履歴", desc: "保存した試合の記録・戦績" },
+const MENU: { href: string; icon: ReactNode; label: string; desc: string }[] = [
+  { href: "/courts", icon: "📍", label: "コート情報", desc: "コートの登録・評価・写真" },
+  {
+    href: "/matches",
+    icon: <PickleballIcon className="h-5 w-5 text-primary-dark" />,
+    label: "試合履歴",
+    desc: "保存した試合の記録・戦績",
+  },
   { href: "/rules", icon: "📘", label: "ルールを学ぶ", desc: "7章の学習・早見表" },
 ];
 
