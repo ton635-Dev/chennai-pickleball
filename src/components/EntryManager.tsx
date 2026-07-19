@@ -3,6 +3,7 @@
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { useMember } from "./MemberProvider";
+import { NameSuggestInput } from "./NameSuggestInput";
 import {
   addTournamentEntries,
   deleteTournamentEntry,
@@ -123,14 +124,10 @@ export function EntryManager({
     </div>
   );
 
+  const usedList = [...usedNames];
+
   return (
     <div className="space-y-3">
-      <datalist id="entry-members">
-        {memberNames.map((n) => (
-          <option key={n} value={n} />
-        ))}
-      </datalist>
-
       {/* 参加者リスト */}
       <div className="card p-4">
         <h2 className="mb-2.5 text-sm font-extrabold text-muted">
@@ -173,17 +170,19 @@ export function EntryManager({
                 2人を選んでペアを作成(チーム名は自動で「選手1・選手2」)
               </div>
               <div className="flex gap-2">
-                <input
-                  list="entry-members"
+                <NameSuggestInput
                   value={p1}
-                  onChange={(e) => setP1(e.target.value)}
+                  onChange={setP1}
+                  suggestions={memberNames}
+                  exclude={[...usedList, p2]}
                   placeholder="選手1"
                   className={inputCls}
                 />
-                <input
-                  list="entry-members"
+                <NameSuggestInput
                   value={p2}
-                  onChange={(e) => setP2(e.target.value)}
+                  onChange={setP2}
+                  suggestions={memberNames}
+                  exclude={[...usedList, p1]}
                   placeholder="選手2"
                   className={inputCls}
                 />
@@ -227,11 +226,12 @@ export function EntryManager({
           <>
             {/* シングルス: 選手名を追加 */}
             <div className="mt-3 flex gap-2">
-              <input
-                list="entry-members"
+              <NameSuggestInput
                 value={text}
-                onChange={(e) => setText(e.target.value)}
-                onKeyDown={(e) => e.key === "Enter" && add(text)}
+                onChange={setText}
+                suggestions={memberNames}
+                exclude={usedList}
+                onEnter={() => add(text)}
                 placeholder="選手名"
                 className={inputCls}
               />

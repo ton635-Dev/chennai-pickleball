@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import { useRouter } from "next/navigation";
+import { NameSuggestInput } from "./NameSuggestInput";
 
 const PRESETS = [3, 5, 11];
 
@@ -50,13 +51,6 @@ export function ScoreboardSetup({ events = [], memberNames = [] }: Props) {
       <p className="mb-5 text-sm text-muted">
         サイドアウト式。ラリーに勝った側をタップするだけで、サーブ権・サーバー番号・サイドアウトは自動判定します。
       </p>
-
-      {/* メンバー名の候補(オートコンプリート用) */}
-      <datalist id="member-names">
-        {memberNames.map((n) => (
-          <option key={n} value={n} />
-        ))}
-      </datalist>
 
       <div className="card space-y-5 p-4">
         {/* 種目 */}
@@ -125,18 +119,20 @@ export function ScoreboardSetup({ events = [], memberNames = [] }: Props) {
                 チーム1
               </div>
               <div className="flex gap-2">
-                <input
-                  list="member-names"
+                <NameSuggestInput
                   value={t1[0]}
-                  onChange={(e) => setT1([e.target.value, t1[1]])}
+                  onChange={(v) => setT1([v, t1[1]])}
+                  suggestions={memberNames}
+                  exclude={[t1[1], t2[0], t2[1]]}
                   placeholder="選手A"
                   className={input}
                 />
                 {mode === "doubles" && (
-                  <input
-                    list="member-names"
+                  <NameSuggestInput
                     value={t1[1]}
-                    onChange={(e) => setT1([t1[0], e.target.value])}
+                    onChange={(v) => setT1([t1[0], v])}
+                    suggestions={memberNames}
+                    exclude={[t1[0], t2[0], t2[1]]}
                     placeholder="選手B"
                     className={input}
                   />
@@ -148,18 +144,20 @@ export function ScoreboardSetup({ events = [], memberNames = [] }: Props) {
                 チーム2
               </div>
               <div className="flex gap-2">
-                <input
-                  list="member-names"
+                <NameSuggestInput
                   value={t2[0]}
-                  onChange={(e) => setT2([e.target.value, t2[1]])}
+                  onChange={(v) => setT2([v, t2[1]])}
+                  suggestions={memberNames}
+                  exclude={[t1[0], t1[1], t2[1]]}
                   placeholder="選手C"
                   className={input}
                 />
                 {mode === "doubles" && (
-                  <input
-                    list="member-names"
+                  <NameSuggestInput
                     value={t2[1]}
-                    onChange={(e) => setT2([t2[0], e.target.value])}
+                    onChange={(v) => setT2([t2[0], v])}
+                    suggestions={memberNames}
+                    exclude={[t1[0], t1[1], t2[0]]}
                     placeholder="選手D"
                     className={input}
                   />
