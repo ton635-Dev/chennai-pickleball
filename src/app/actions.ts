@@ -39,6 +39,18 @@ async function log(
 // ---------------------------------------------------------------------
 // メンバー
 // ---------------------------------------------------------------------
+/** 保存済みメンバーIDがまだ有効か検証(削除済みなら null) */
+export async function verifyMember(
+  id: string
+): Promise<{ id: string; name: string } | null> {
+  const { data } = await sb()
+    .from("members")
+    .select("id, name")
+    .eq("id", id)
+    .maybeSingle();
+  return (data as { id: string; name: string } | null) ?? null;
+}
+
 export async function listMembers() {
   const { data } = await sb()
     .from("members")
@@ -87,6 +99,7 @@ export interface EventInput {
   event_date: string;
   start_time?: string | null;
   end_time?: string | null;
+  court_id?: string | null;
   place_name?: string | null;
   maps_url?: string | null;
   fee?: string | null;
@@ -102,6 +115,7 @@ export async function createEvent(input: EventInput, createdBy: string | null) {
       event_date: input.event_date,
       start_time: input.start_time || null,
       end_time: input.end_time || null,
+      court_id: input.court_id || null,
       place_name: input.place_name || null,
       maps_url: input.maps_url || null,
       fee: input.fee || null,
@@ -129,6 +143,7 @@ export async function updateEvent(
       event_date: input.event_date,
       start_time: input.start_time || null,
       end_time: input.end_time || null,
+      court_id: input.court_id || null,
       place_name: input.place_name || null,
       maps_url: input.maps_url || null,
       fee: input.fee || null,
@@ -182,6 +197,128 @@ export async function setAttendance(
   revalidatePath("/");
   revalidatePath("/schedule");
   revalidatePath(`/events/${eventId}`);
+}
+
+// ---------------------------------------------------------------------
+// コート
+// ---------------------------------------------------------------------
+export interface CourtInput {
+  name: string;
+  address?: string | null;
+  maps_url?: string | null;
+  is_indoor?: boolean | null;
+  court_count?: number | null;
+  surface?: string | null;
+  facilities?: string | null;
+  fee?: string | null;
+  booking?: string | null;
+  outdoor_note?: string | null;
+  note?: string | null;
+}
+
+function courtValues(input: CourtInput) {
+  return {
+    name: input.name.trim(),
+    address: input.address || null,
+    maps_url: input.maps_url || null,
+    is_indoor: input.is_indoor ?? null,
+    court_count: input.court_count ?? null,
+    surface: input.surface || null,
+    facilities: input.facilities || null,
+    fee: input.fee || null,
+    booking: input.booking || null,
+    outdoor_note: input.outdoor_note || null,
+    note: input.note || null,
+  };
+}
+
+export async function createCourt(input: CourtInput, createdBy: string | null) {
+  if (!input.name.trim()) throw new Error("コート名を入力してください");
+  const { data, error } = await sb()
+    .from("courts")
+    .insert({ ...courtValues(input), created_by: createdBy })
+    .select("id")
+    .single();
+  if (error) throw new Error(error.message);
+  await log("court", data.id, createdBy, "create", "コートを作成");
+  revalidatePath("/courts");
+  return data.id as string;
+}
+
+export async function updateCourt(
+  id: string,
+  input: CourtInput,
+  memberId: string | null
+) {
+  const { error } = await sb()
+    .from("courts")
+    .update({ ...courtValues(input), updated_at: new Date().toISOString() })
+    .eq("id", id);
+  if (error) throw new Error(error.message);
+  await log("court", id, memberId, "update", "コートを編集");
+  revalidatePath("/courts");
+  revalidatePath(`/courts/${id}`);
+}
+
+export async function archiveCourt(id: string, memberId: string | null) {
+  const { error } = await sb()
+    .from("courts")
+    .update({ archived: true, updated_at: new Date().toISOString() })
+    .eq("id", id);
+  if (error) throw new Error(error.message);
+  await log("court", id, memberId, "archive", "コートをアーカイブ");
+  revalidatePath("/courts");
+}
+
+/** 写真レコードを追加(Storageへのアップロードはクライアントで実施済み) */
+export async function addCourtPhoto(
+  courtId: string,
+  url: string,
+  storagePath: string,
+  memberId: string | null
+) {
+  const { error } = await sb().from("court_photos").insert({
+    court_id: courtId,
+    url,
+    storage_path: storagePath,
+    created_by: memberId,
+  });
+  if (error) throw new Error(error.message);
+  revalidatePath(`/courts/${courtId}`);
+  revalidatePath("/courts");
+}
+
+export async function deleteCourtPhoto(photoId: string, courtId: string) {
+  const { error } = await sb().from("court_photos").delete().eq("id", photoId);
+  if (error) throw new Error(error.message);
+  revalidatePath(`/courts/${courtId}`);
+  revalidatePath("/courts");
+}
+
+/** 項目別評価をまとめて登録/更新(1メンバー分) */
+export async function saveCourtReview(
+  courtId: string,
+  memberId: string,
+  items: { review_item_id: string; score: number; comment: string | null }[]
+) {
+  const rows = items
+    .filter((i) => i.score >= 1 && i.score <= 5)
+    .map((i) => ({
+      court_id: courtId,
+      member_id: memberId,
+      review_item_id: i.review_item_id,
+      score: i.score,
+      comment: i.comment || null,
+      updated_at: new Date().toISOString(),
+    }));
+  if (rows.length === 0) throw new Error("少なくとも1項目を評価してください");
+  const { error } = await sb()
+    .from("court_reviews")
+    .upsert(rows, { onConflict: "court_id,member_id,review_item_id" });
+  if (error) throw new Error(error.message);
+  await log("court", courtId, memberId, "review", "コートを評価");
+  revalidatePath(`/courts/${courtId}`);
+  revalidatePath("/courts");
 }
 
 // ---------------------------------------------------------------------

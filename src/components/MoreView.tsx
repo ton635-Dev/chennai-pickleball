@@ -1,11 +1,18 @@
 "use client";
 
 import { useState } from "react";
+import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useMember } from "./MemberProvider";
 import { updateMemberName, deleteMember } from "@/app/actions";
 import { Avatar } from "./bits";
 import type { MemberStat } from "@/lib/data";
+
+const MENU: { href: string; icon: string; label: string; desc: string }[] = [
+  { href: "/courts", icon: "🎾", label: "コート情報", desc: "コートの登録・評価・写真" },
+  { href: "/matches", icon: "🏓", label: "試合履歴", desc: "保存した試合の記録・戦績" },
+  { href: "/rules", icon: "📘", label: "ルールを学ぶ", desc: "7章の学習・早見表" },
+];
 
 export function MoreView({ stats }: { stats: MemberStat[] }) {
   const { member, setMember, signOut } = useMember();
@@ -71,7 +78,29 @@ export function MoreView({ stats }: { stats: MemberStat[] }) {
 
   return (
     <div className="mx-auto w-full max-w-2xl pt-1">
-      <h1 className="mb-4 text-[22px] font-extrabold">メンバー / 設定</h1>
+      <h1 className="mb-4 text-[22px] font-extrabold">その他</h1>
+
+      {/* メニュー */}
+      <div className="card mb-3 overflow-hidden p-0">
+        {MENU.map((m, i) => (
+          <Link
+            key={m.href}
+            href={m.href}
+            className={`flex items-center gap-3 px-4 py-3.5 hover:bg-bg ${
+              i > 0 ? "border-t border-line" : ""
+            }`}
+          >
+            <span className="flex h-10 w-10 items-center justify-center rounded-xl bg-[#EDF4F1] text-xl">
+              {m.icon}
+            </span>
+            <div className="flex-1">
+              <b className="block text-sm">{m.label}</b>
+              <span className="text-xs text-muted">{m.desc}</span>
+            </div>
+            <span className="text-muted">›</span>
+          </Link>
+        ))}
+      </div>
 
       {/* プロフィール(自分) */}
       <div className="card mb-3 p-4">

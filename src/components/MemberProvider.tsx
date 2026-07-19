@@ -13,6 +13,7 @@ import {
   saveMember,
   type StoredMember,
 } from "@/lib/member-store";
+import { verifyMember } from "@/app/actions";
 
 interface MemberContextValue {
   member: StoredMember | null;
@@ -28,8 +29,27 @@ export function MemberProvider({ children }: { children: React.ReactNode }) {
   const [loaded, setLoaded] = useState(false);
 
   useEffect(() => {
-    setMemberState(loadMember());
+    const stored = loadMember();
+    setMemberState(stored);
     setLoaded(true);
+    // 保存済みIDがDBに存在するか検証(別端末で削除された場合などに対応)
+    if (stored) {
+      verifyMember(stored.id)
+        .then((m) => {
+          if (!m) {
+            // 削除済み: ひも付けを解除して再登録を促す
+            clearMember();
+            setMemberState(null);
+          } else if (m.name !== stored.name) {
+            // 別端末で改名された場合は同期
+            saveMember(m);
+            setMemberState(m);
+          }
+        })
+        .catch(() => {
+          /* 検証失敗(オフライン等)はそのまま利用 */
+        });
+    }
   }, []);
 
   const setMember = useCallback((m: StoredMember) => {

@@ -7,9 +7,16 @@ import { useMember } from "./MemberProvider";
 import { createEvent, updateEvent, type EventInput } from "@/app/actions";
 import type { EventRow } from "@/lib/types";
 
+interface CourtOption {
+  id: string;
+  name: string;
+  maps_url: string | null;
+}
+
 interface Props {
   /** 編集時は既存イベント */
   event?: EventRow;
+  courts?: CourtOption[];
 }
 
 /** ISO -> datetime-local 値(ローカル) */
@@ -26,7 +33,7 @@ const label = "mb-1.5 block text-[13px] font-bold text-muted";
 const field =
   "w-full rounded-xl border border-line bg-bg px-3.5 py-3 text-[15px] outline-none focus:border-primary";
 
-export function EventForm({ event }: Props) {
+export function EventForm({ event, courts = [] }: Props) {
   const router = useRouter();
   const { member } = useMember();
   const editing = !!event;
@@ -34,8 +41,19 @@ export function EventForm({ event }: Props) {
   const [date, setDate] = useState(event?.event_date ?? "");
   const [start, setStart] = useState(event?.start_time?.slice(0, 5) ?? "");
   const [end, setEnd] = useState(event?.end_time?.slice(0, 5) ?? "");
+  const [courtId, setCourtId] = useState(event?.court_id ?? "");
   const [place, setPlace] = useState(event?.place_name ?? "");
   const [maps, setMaps] = useState(event?.maps_url ?? "");
+
+  // コートを選ぶと場所名・地図を自動補完
+  const selectCourt = (id: string) => {
+    setCourtId(id);
+    const c = courts.find((c) => c.id === id);
+    if (c) {
+      setPlace(c.name);
+      setMaps(c.maps_url ?? "");
+    }
+  };
   const [fee, setFee] = useState(event?.fee ?? "");
   const [deadline, setDeadline] = useState(
     toLocalInput(event?.rsvp_deadline ?? null)
@@ -55,6 +73,7 @@ export function EventForm({ event }: Props) {
       event_date: date,
       start_time: start || null,
       end_time: end || null,
+      court_id: courtId || null,
       place_name: place || null,
       maps_url: maps || null,
       fee: fee || null,
@@ -120,11 +139,32 @@ export function EventForm({ event }: Props) {
             />
           </div>
         </div>
+        {courts.length > 0 && (
+          <div>
+            <label className={label}>コートから選ぶ</label>
+            <select
+              value={courtId}
+              onChange={(e) => selectCourt(e.target.value)}
+              className={field}
+            >
+              <option value="">手動で入力</option>
+              {courts.map((c) => (
+                <option key={c.id} value={c.id}>
+                  {c.name}
+                </option>
+              ))}
+            </select>
+          </div>
+        )}
+
         <div>
           <label className={label}>場所名</label>
           <input
             value={place}
-            onChange={(e) => setPlace(e.target.value)}
+            onChange={(e) => {
+              setPlace(e.target.value);
+              setCourtId(""); // 手動編集したらコート選択を解除
+            }}
             placeholder="例: Marina Sports Arena・屋外4面"
             className={field}
           />

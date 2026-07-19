@@ -19,6 +19,7 @@ export interface EventRow {
   event_date: string; // YYYY-MM-DD
   start_time: string | null; // HH:MM:SS
   end_time: string | null;
+  court_id: string | null;
   place_name: string | null;
   maps_url: string | null;
   fee: string | null;
@@ -48,6 +49,68 @@ export interface AttendanceWithMember extends Attendance {
 export interface EventWithAttendance extends EventRow {
   attendances: AttendanceWithMember[];
   counts: Record<AttendanceStatus, number>;
+}
+
+export interface CourtRow {
+  id: string;
+  name: string;
+  address: string | null;
+  maps_url: string | null;
+  is_indoor: boolean | null;
+  court_count: number | null;
+  surface: string | null;
+  facilities: string | null;
+  fee: string | null;
+  booking: string | null;
+  outdoor_note: string | null;
+  note: string | null;
+  created_by: string | null;
+  archived: boolean;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface CourtPhoto {
+  id: string;
+  court_id: string;
+  url: string;
+  storage_path: string | null;
+  created_at: string;
+}
+
+export interface ReviewItem {
+  id: string;
+  name: string;
+  sort_order: number;
+  active: boolean;
+}
+
+export interface CourtReview {
+  id: string;
+  court_id: string;
+  member_id: string;
+  review_item_id: string;
+  score: number;
+  comment: string | null;
+  updated_at: string;
+}
+
+export interface CourtReviewWithMember extends CourtReview {
+  member: Pick<Member, "id" | "name">;
+}
+
+// 項目ごとの平均点
+export interface ItemAverage {
+  item: ReviewItem;
+  average: number | null;
+  count: number;
+}
+
+// 一覧表示用(集計込み)
+export interface CourtSummary extends CourtRow {
+  photoUrl: string | null;
+  overallAverage: number | null;
+  reviewerCount: number;
 }
 
 export interface MatchRow {
