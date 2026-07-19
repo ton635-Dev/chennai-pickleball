@@ -188,13 +188,29 @@ export function EventForm({ event, courts = [] }: Props) {
           />
         </div>
         <div>
-          <label className={label}>出欠締切</label>
+          <div className="mb-1.5 flex items-center justify-between">
+            <label className="text-[13px] font-bold text-muted">出欠締切</label>
+            {deadline && (
+              <button
+                type="button"
+                onClick={() => setDeadline("")}
+                className="text-xs font-bold text-primary"
+              >
+                締切をなくす
+              </button>
+            )}
+          </div>
           <input
             type="datetime-local"
             value={deadline}
             onChange={(e) => setDeadline(e.target.value)}
             className={field}
           />
+          {!deadline && (
+            <p className="mt-1 text-[11px] text-muted">
+              未設定(締切なし)。設定すると詳細に表示されます。
+            </p>
+          )}
         </div>
         <div>
           <label className={label}>メモ</label>
