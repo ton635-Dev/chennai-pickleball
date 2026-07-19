@@ -3,11 +3,18 @@ import "./globals.css";
 import { MemberProvider } from "@/components/MemberProvider";
 import { MemberGate } from "@/components/MemberGate";
 import { AppShell } from "@/components/AppShell";
+import { ServiceWorkerRegister } from "@/components/ServiceWorkerRegister";
 import { isSupabaseConfigured } from "@/lib/supabase/config";
 
 export const metadata: Metadata = {
   title: "Chennai Pickleball",
   description: "チェンナイ ピックルボールサークルの活動管理アプリ",
+  manifest: "/manifest.webmanifest",
+  appleWebApp: {
+    capable: true,
+    statusBarStyle: "default",
+    title: "Pickleball",
+  },
 };
 
 export const viewport: Viewport = {
@@ -35,6 +42,7 @@ export default function RootLayout({
           <AppShell>{children}</AppShell>
           <MemberGate />
         </MemberProvider>
+        <ServiceWorkerRegister />
       </body>
     </html>
   );

@@ -38,6 +38,13 @@
 
 > Phase 3 を使うには `supabase/phase3-tournaments.sql` の実行が必要です。
 
+## Phase 4 の実装範囲
+
+- **PWA対応** — `manifest.webmanifest` + アプリアイコン + Service Worker。スマホで「ホーム画面に追加」でき、一度開けばオフラインでも起動(スコアボードはオフライン利用可)
+- **Supabase 無料枠の一時停止対策** — Vercel Cron から毎日 `/api/ping` を叩き、約1週間アクセスがないと停止する無料枠を起こしておく(追加設定不要・`vercel.json`)
+
+> Web Push 通知は VAPID 鍵・配信基盤が必要なため未実装(告知は WhatsApp 連携でカバー)。必要になれば追加します。
+
 ## 技術構成
 
 - Next.js 15(App Router)+ TypeScript + React 19
