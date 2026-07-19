@@ -3,18 +3,26 @@
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { useMember } from "./MemberProvider";
-import { updateMemberName } from "@/app/actions";
+import { updateMemberName, deleteMember } from "@/app/actions";
 import { Avatar } from "./bits";
 import type { MemberStat } from "@/lib/data";
 
 export function MoreView({ stats }: { stats: MemberStat[] }) {
   const { member, setMember, signOut } = useMember();
   const router = useRouter();
+
+  // プロフィール(自分の表示名)
   const [name, setName] = useState(member?.name ?? "");
   const [busy, setBusy] = useState(false);
   const [saved, setSaved] = useState(false);
 
-  const save = async () => {
+  // メンバー一覧の編集・削除
+  const [editingId, setEditingId] = useState<string | null>(null);
+  const [editName, setEditName] = useState("");
+  const [confirm, setConfirm] = useState<MemberStat | null>(null);
+  const [rowBusy, setRowBusy] = useState(false);
+
+  const saveSelf = async () => {
     if (!member || !name.trim()) return;
     setBusy(true);
     try {
@@ -28,14 +36,47 @@ export function MoreView({ stats }: { stats: MemberStat[] }) {
     }
   };
 
+  const startEdit = (m: MemberStat) => {
+    setEditingId(m.id);
+    setEditName(m.name);
+  };
+
+  const saveEdit = async (m: MemberStat) => {
+    if (!editName.trim()) return;
+    setRowBusy(true);
+    try {
+      const res = await updateMemberName(m.id, editName);
+      // 自分を変更した場合は端末の保存名も更新
+      if (member?.id === m.id) setMember({ id: res.id, name: res.name });
+      setEditingId(null);
+      router.refresh();
+    } finally {
+      setRowBusy(false);
+    }
+  };
+
+  const doDelete = async () => {
+    if (!confirm) return;
+    setRowBusy(true);
+    try {
+      await deleteMember(confirm.id, member?.id ?? null);
+      // 自分自身を削除したら端末のひも付けも解除
+      if (member?.id === confirm.id) signOut();
+      setConfirm(null);
+      router.refresh();
+    } finally {
+      setRowBusy(false);
+    }
+  };
+
   return (
     <div className="mx-auto w-full max-w-2xl pt-1">
       <h1 className="mb-4 text-[22px] font-extrabold">メンバー / 設定</h1>
 
-      {/* プロフィール */}
+      {/* プロフィール(自分) */}
       <div className="card mb-3 p-4">
         <h2 className="mb-3 text-sm font-extrabold text-muted">
-          プロフィール(表示名)
+          プロフィール(あなたの表示名)
         </h2>
         {member ? (
           <>
@@ -46,7 +87,7 @@ export function MoreView({ stats }: { stats: MemberStat[] }) {
                 className="flex-1 rounded-xl border border-line bg-bg px-3.5 py-3 text-[15px] outline-none focus:border-primary"
               />
               <button
-                onClick={save}
+                onClick={saveSelf}
                 disabled={busy || !name.trim()}
                 className="btn-pill bg-primary px-5 text-sm text-white disabled:opacity-50"
               >
@@ -67,7 +108,7 @@ export function MoreView({ stats }: { stats: MemberStat[] }) {
         )}
       </div>
 
-      {/* メンバー一覧 */}
+      {/* メンバー一覧(編集・削除) */}
       <div className="card p-4">
         <h2 className="mb-2.5 text-sm font-extrabold text-muted">
           メンバー一覧(参加回数)
@@ -77,25 +118,101 @@ export function MoreView({ stats }: { stats: MemberStat[] }) {
             まだメンバーがいません
           </p>
         ) : (
-          stats.map((m) => (
-            <div
-              key={m.id}
-              className="flex items-center gap-3 border-b border-line py-2.5 last:border-none"
-            >
-              <Avatar name={m.name} className="h-8 w-8 text-xs" />
-              <span className="text-sm font-bold">{m.name}</span>
-              {member?.id === m.id && (
-                <span className="rounded-pill bg-[#E2F3EE] px-2 py-0.5 text-[10px] font-extrabold text-primary-dark">
-                  あなた
-                </span>
-              )}
-              <span className="ml-auto text-[13px] font-bold text-muted">
-                {m.joinCount}回
-              </span>
-            </div>
-          ))
+          stats.map((m) => {
+            const isMe = member?.id === m.id;
+            const editing = editingId === m.id;
+            return (
+              <div
+                key={m.id}
+                className="flex items-center gap-2.5 border-b border-line py-2.5 last:border-none"
+              >
+                <Avatar name={editing ? editName : m.name} className="h-8 w-8 shrink-0 text-xs" />
+                {editing ? (
+                  <>
+                    <input
+                      value={editName}
+                      onChange={(e) => setEditName(e.target.value)}
+                      onKeyDown={(e) => e.key === "Enter" && saveEdit(m)}
+                      autoFocus
+                      className="min-w-0 flex-1 rounded-lg border border-line bg-bg px-2.5 py-1.5 text-sm outline-none focus:border-primary"
+                    />
+                    <button
+                      onClick={() => saveEdit(m)}
+                      disabled={rowBusy || !editName.trim()}
+                      className="btn-pill shrink-0 bg-primary px-3 py-1.5 text-xs text-white disabled:opacity-50"
+                    >
+                      保存
+                    </button>
+                    <button
+                      onClick={() => setEditingId(null)}
+                      className="shrink-0 px-1 text-xs font-bold text-muted"
+                    >
+                      取消
+                    </button>
+                  </>
+                ) : (
+                  <>
+                    <span className="truncate text-sm font-bold">{m.name}</span>
+                    {isMe && (
+                      <span className="shrink-0 rounded-pill bg-[#E2F3EE] px-2 py-0.5 text-[10px] font-extrabold text-primary-dark">
+                        あなた
+                      </span>
+                    )}
+                    <span className="ml-auto shrink-0 text-[13px] font-bold text-muted">
+                      {m.joinCount}回
+                    </span>
+                    <button
+                      onClick={() => startEdit(m)}
+                      className="shrink-0 rounded-lg border border-line px-2.5 py-1.5 text-xs font-bold text-ink"
+                      aria-label={`${m.name}の名前を変更`}
+                    >
+                      編集
+                    </button>
+                    <button
+                      onClick={() => setConfirm(m)}
+                      className="shrink-0 rounded-lg border border-line px-2.5 py-1.5 text-xs font-bold text-red-600"
+                      aria-label={`${m.name}を削除`}
+                    >
+                      削除
+                    </button>
+                  </>
+                )}
+              </div>
+            );
+          })
         )}
       </div>
+
+      {/* 削除確認 */}
+      {confirm && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4">
+          <div className="card w-full max-w-xs p-5">
+            <p className="text-[15px] font-bold">
+              「{confirm.name}」を削除しますか?
+            </p>
+            <p className="mt-1 text-xs text-muted">
+              このメンバーの出欠記録も削除されます。この操作は元に戻せません。
+              {member?.id === confirm.id &&
+                "(あなた自身を削除すると、この端末のひも付けも解除されます)"}
+            </p>
+            <div className="mt-4 flex gap-2">
+              <button
+                onClick={() => setConfirm(null)}
+                className="btn-pill flex-1 border border-line bg-surface py-2.5 text-sm text-muted"
+              >
+                キャンセル
+              </button>
+              <button
+                onClick={doDelete}
+                disabled={rowBusy}
+                className="btn-pill flex-1 bg-red-600 py-2.5 text-sm text-white disabled:opacity-50"
+              >
+                {rowBusy ? "削除中…" : "削除する"}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

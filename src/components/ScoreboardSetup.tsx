@@ -3,7 +3,7 @@
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 
-const PRESETS = [7, 11, 15];
+const PRESETS = [3, 5, 11];
 
 export function ScoreboardSetup() {
   const router = useRouter();

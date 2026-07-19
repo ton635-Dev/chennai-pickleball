@@ -59,6 +59,15 @@ export async function updateMemberName(id: string, name: string) {
   return { id, name: trimmed };
 }
 
+export async function deleteMember(id: string, byMemberId: string | null) {
+  const { error } = await sb().from("members").delete().eq("id", id);
+  if (error) throw new Error(error.message);
+  // 自分自身を削除した場合は監査ログの member_id は null にする(FK回避)
+  await log("member", id, byMemberId === id ? null : byMemberId, "delete", "メンバーを削除");
+  revalidatePath("/");
+  revalidatePath("/more");
+}
+
 export async function createMember(name: string) {
   const trimmed = name.trim();
   if (!trimmed) throw new Error("名前を入力してください");
