@@ -11,6 +11,7 @@ import { getAppUrl } from "@/lib/supabase/config";
 import { buildAnnouncementText, buildRosterText } from "@/lib/whatsapp";
 import { EventRsvpPanel } from "@/components/EventRsvpPanel";
 import { EventActions } from "@/components/EventActions";
+import { PayerUpiSection } from "@/components/PayerUpiSection";
 import { ShareButton } from "@/components/ShareButton";
 import { AnnouncementShare } from "@/components/AnnouncementShare";
 import { Avatar } from "@/components/bits";
@@ -83,11 +84,39 @@ export default async function EventDetailPage({
               </span>
             </div>
           )}
-          {ev.fee && (
+          {ev.court_fee != null ? (
+            <div className="flex items-center gap-2 border-b border-line py-2.5 text-sm">
+              <span className="w-5 text-center">💰</span>
+              <span>
+                コート使用費 <b>₹{ev.court_fee.toLocaleString()}</b>
+                {(() => {
+                  const n = ev.fee_split_count ?? ev.counts.join;
+                  if (n > 0) {
+                    const per = Math.ceil(ev.court_fee! / n);
+                    return (
+                      <>
+                        {" "}
+                        ・{n}人割り →{" "}
+                        <b className="text-primary-dark">一人 ₹{per.toLocaleString()}</b>
+                      </>
+                    );
+                  }
+                  return (
+                    <small className="text-muted">
+                      (参加人数が入り次第、一人あたりを自動計算)
+                    </small>
+                  );
+                })()}
+              </span>
+            </div>
+          ) : ev.fee ? (
             <div className="flex items-center gap-2 border-b border-line py-2.5 text-sm">
               <span className="w-5 text-center">💰</span>
               <span>参加費 {ev.fee}</span>
             </div>
+          ) : null}
+          {ev.payer && (
+            <PayerUpiSection name={ev.payer.name} qrUrl={ev.payer.upi_qr_url} />
           )}
           {ev.rsvp_deadline && (
             <div className="flex items-center gap-2 border-b border-line py-2.5 text-sm">

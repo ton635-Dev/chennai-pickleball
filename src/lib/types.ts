@@ -12,6 +12,8 @@ export interface Member {
   id: string;
   name: string;
   created_at: string;
+  upi_qr_url?: string | null;
+  upi_qr_path?: string | null;
 }
 
 export interface EventRow {
@@ -22,7 +24,10 @@ export interface EventRow {
   court_id: string | null;
   place_name: string | null;
   maps_url: string | null;
-  fee: string | null;
+  fee: string | null; // 旧・参加費(自由入力)。court_fee 導入後は未使用
+  court_fee: number | null; // コート使用費 合計(₹)
+  fee_split_count: number | null; // 割り勘人数(null=参加人数で自動)
+  payer_member_id: string | null; // コート代の立替者
   rsvp_deadline: string | null; // ISO
   note: string | null;
   created_by: string | null;
@@ -45,10 +50,18 @@ export interface AttendanceWithMember extends Attendance {
   member: Pick<Member, "id" | "name">;
 }
 
+// 立替者の表示情報(UPIコード込み)
+export interface PayerInfo {
+  id: string;
+  name: string;
+  upi_qr_url: string | null;
+}
+
 // イベント + 出欠集計 + 参加者(表示用)
 export interface EventWithAttendance extends EventRow {
   attendances: AttendanceWithMember[];
   counts: Record<AttendanceStatus, number>;
+  payer?: PayerInfo | null;
 }
 
 export type TournamentFormat = "single_elim" | "round_robin";

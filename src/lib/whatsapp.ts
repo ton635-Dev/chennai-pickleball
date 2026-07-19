@@ -25,7 +25,9 @@ export function buildAnnouncementText(ev: EventRow, appUrl: string): string {
   lines.push(`日時: ${formatDateJa(ev.event_date)}${range ? ` ${range}` : ""}`);
   if (ev.place_name) lines.push(`場所: ${ev.place_name}`);
   if (ev.maps_url) lines.push(`地図: ${ev.maps_url}`);
-  if (ev.fee) lines.push(`参加費: ${ev.fee}`);
+  if (ev.court_fee != null)
+    lines.push(`コート使用費: ₹${ev.court_fee}(参加者で割り勘)`);
+  else if (ev.fee) lines.push(`参加費: ${ev.fee}`);
   if (ev.rsvp_deadline)
     lines.push(`出欠締切: ${formatDeadline(ev.rsvp_deadline)}`);
   if (ev.note) {

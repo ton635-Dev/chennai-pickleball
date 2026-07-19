@@ -12,6 +12,7 @@ import type {
   ItemAverage,
   MatchRow,
   Member,
+  PayerInfo,
   ReviewItem,
   Tournament,
   TournamentEntry,
@@ -88,7 +89,11 @@ export async function getEventWithAttendance(
   if (!sb) return null;
   // どちらも URL の id をキーにするため並列取得できる
   const [{ data: ev }, { data: atts }] = await Promise.all([
-    sb.from("events").select("*").eq("id", id).maybeSingle(),
+    sb
+      .from("events")
+      .select("*, payer:members!events_payer_member_id_fkey(id, name, upi_qr_url)")
+      .eq("id", id)
+      .maybeSingle(),
     sb
       .from("attendances")
       .select("*, member:members(id, name)")
@@ -96,7 +101,11 @@ export async function getEventWithAttendance(
       .order("updated_at", { ascending: true }),
   ]);
   if (!ev) return null;
-  return withCounts(ev as EventRow, (atts as AttendanceWithMember[]) ?? []);
+  const row = ev as EventRow & { payer: PayerInfo | null };
+  return {
+    ...withCounts(row, (atts as AttendanceWithMember[]) ?? []),
+    payer: row.payer ?? null,
+  };
 }
 
 export interface MemberStat {

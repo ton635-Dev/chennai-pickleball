@@ -13,10 +13,16 @@ interface CourtOption {
   maps_url: string | null;
 }
 
+interface MemberOption {
+  id: string;
+  name: string;
+}
+
 interface Props {
   /** 編集時は既存イベント */
   event?: EventRow;
   courts?: CourtOption[];
+  members?: MemberOption[];
 }
 
 /** ISO -> datetime-local 値(ローカル) */
@@ -33,7 +39,7 @@ const label = "mb-1.5 block text-[13px] font-bold text-muted";
 const field =
   "w-full rounded-xl border border-line bg-bg px-3.5 py-3 text-[15px] outline-none focus:border-primary";
 
-export function EventForm({ event, courts = [] }: Props) {
+export function EventForm({ event, courts = [], members = [] }: Props) {
   const router = useRouter();
   const { member } = useMember();
   const editing = !!event;
@@ -54,7 +60,14 @@ export function EventForm({ event, courts = [] }: Props) {
       setMaps(c.maps_url ?? "");
     }
   };
-  const [fee, setFee] = useState(event?.fee ?? "");
+  // コート使用費(合計)・割り勘人数・立替者
+  const [courtFee, setCourtFee] = useState(
+    event?.court_fee != null ? String(event.court_fee) : ""
+  );
+  const [splitCount, setSplitCount] = useState(
+    event?.fee_split_count != null ? String(event.fee_split_count) : ""
+  );
+  const [payerId, setPayerId] = useState(event?.payer_member_id ?? "");
   const [deadline, setDeadline] = useState(
     toLocalInput(event?.rsvp_deadline ?? null)
   );
@@ -76,7 +89,9 @@ export function EventForm({ event, courts = [] }: Props) {
       court_id: courtId || null,
       place_name: place || null,
       maps_url: maps || null,
-      fee: fee || null,
+      court_fee: courtFee ? parseInt(courtFee, 10) : null,
+      fee_split_count: splitCount ? Math.max(1, parseInt(splitCount, 10)) : null,
+      payer_member_id: payerId || null,
       rsvp_deadline: deadline ? new Date(deadline).toISOString() : null,
       note: note || null,
     };
@@ -178,15 +193,60 @@ export function EventForm({ event, courts = [] }: Props) {
             className={field}
           />
         </div>
-        <div>
-          <label className={label}>参加費</label>
-          <input
-            value={fee}
-            onChange={(e) => setFee(e.target.value)}
-            placeholder="例: ₹250(コート代割り勘)"
-            className={field}
-          />
+        <div className="flex gap-3">
+          <div className="flex-1">
+            <label className={label}>コート使用費(合計・₹)</label>
+            <input
+              type="text"
+              inputMode="numeric"
+              value={courtFee}
+              onChange={(e) =>
+                setCourtFee(e.target.value.replace(/[^0-9]/g, "").slice(0, 6))
+              }
+              placeholder="例: 1200"
+              className={field}
+            />
+          </div>
+          <div className="flex-1">
+            <label className={label}>割り勘人数</label>
+            <input
+              type="text"
+              inputMode="numeric"
+              value={splitCount}
+              onChange={(e) =>
+                setSplitCount(e.target.value.replace(/[^0-9]/g, "").slice(0, 3))
+              }
+              placeholder="空欄=参加人数"
+              className={field}
+            />
+          </div>
         </div>
+        {courtFee && (
+          <p className="-mt-2 text-[11px] text-muted">
+            一人あたりの金額は活動詳細に自動表示されます(割り勘人数が空欄なら「参加」の人数で計算)。
+          </p>
+        )}
+
+        {members.length > 0 && (
+          <div>
+            <label className={label}>コート代を支払う人(立替)</label>
+            <select
+              value={payerId}
+              onChange={(e) => setPayerId(e.target.value)}
+              className={field}
+            >
+              <option value="">選択しない</option>
+              {members.map((m) => (
+                <option key={m.id} value={m.id}>
+                  {m.name}
+                </option>
+              ))}
+            </select>
+            <p className="mt-1 text-[11px] text-muted">
+              選択すると活動詳細にその人のUPIコード(QR)が表示され、参加者が送金できます。
+            </p>
+          </div>
+        )}
         <div>
           <div className="mb-1.5 flex items-center justify-between">
             <label className="text-[13px] font-bold text-muted">出欠締切</label>

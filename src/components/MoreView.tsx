@@ -7,6 +7,7 @@ import { useMember } from "./MemberProvider";
 import { updateMemberName, deleteMember } from "@/app/actions";
 import { Avatar } from "./bits";
 import { PickleballIcon } from "./PickleballIcon";
+import { UpiQrManager } from "./UpiQrManager";
 import type { MemberStat } from "@/lib/data";
 
 const MENU: { href: string; icon: ReactNode; label: string; desc: string }[] = [
@@ -135,6 +136,7 @@ export function MoreView({ stats }: { stats: MemberStat[] }) {
             >
               別の端末・別のメンバーに切り替える(端末の再ひも付け)
             </button>
+            <UpiQrManager />
           </>
         ) : (
           <p className="text-sm text-muted">

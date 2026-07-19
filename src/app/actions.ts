@@ -81,6 +81,31 @@ export async function updateMemberName(id: string, name: string) {
   return { id, name: trimmed };
 }
 
+/** UPIコード(QR画像)を登録/差し替え。Storageへのアップロードはクライアントで実施済み */
+export async function setMemberUpiQr(
+  memberId: string,
+  url: string,
+  path: string
+) {
+  const { error } = await sb()
+    .from("members")
+    .update({ upi_qr_url: url, upi_qr_path: path })
+    .eq("id", memberId);
+  if (error) throw new Error(error.message);
+  await log("member", memberId, memberId, "upi", "UPIコードを登録");
+  revalidatePath("/more");
+}
+
+export async function clearMemberUpiQr(memberId: string) {
+  const { error } = await sb()
+    .from("members")
+    .update({ upi_qr_url: null, upi_qr_path: null })
+    .eq("id", memberId);
+  if (error) throw new Error(error.message);
+  await log("member", memberId, memberId, "upi", "UPIコードを削除");
+  revalidatePath("/more");
+}
+
 export async function deleteMember(id: string, byMemberId: string | null) {
   const { error } = await sb().from("members").delete().eq("id", id);
   if (error) throw new Error(error.message);
@@ -113,6 +138,9 @@ export interface EventInput {
   place_name?: string | null;
   maps_url?: string | null;
   fee?: string | null;
+  court_fee?: number | null;
+  fee_split_count?: number | null;
+  payer_member_id?: string | null;
   rsvp_deadline?: string | null;
   note?: string | null;
 }
@@ -129,6 +157,9 @@ export async function createEvent(input: EventInput, createdBy: string | null) {
       place_name: input.place_name || null,
       maps_url: input.maps_url || null,
       fee: input.fee || null,
+      court_fee: input.court_fee ?? null,
+      fee_split_count: input.fee_split_count ?? null,
+      payer_member_id: input.payer_member_id || null,
       rsvp_deadline: input.rsvp_deadline || null,
       note: input.note || null,
       created_by: createdBy,
@@ -157,6 +188,9 @@ export async function updateEvent(
       place_name: input.place_name || null,
       maps_url: input.maps_url || null,
       fee: input.fee || null,
+      court_fee: input.court_fee ?? null,
+      fee_split_count: input.fee_split_count ?? null,
+      payer_member_id: input.payer_member_id || null,
       rsvp_deadline: input.rsvp_deadline || null,
       note: input.note || null,
       updated_at: new Date().toISOString(),
