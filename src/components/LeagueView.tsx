@@ -129,7 +129,7 @@ export function LeagueView({ tournament, entries, matches }: Props) {
                       myScore = iAm1 ? m.score1 : m.score2;
                       oppScore = iAm1 ? m.score2 : m.score1;
                       const won = m.winner_entry_id === e.id;
-                      mark = won ? "○" : "●";
+                      mark = won ? "○" : "×";
                       cls = won ? "text-primary-dark font-extrabold" : "text-[#C4514A] font-extrabold";
                     }
                     return (
