@@ -53,14 +53,14 @@ create table if not exists review_items (
 );
 
 -- 初期の評価項目(未登録なら投入)
+-- ※「コート数」は主観評価に不向きで面数は基本情報に表示されるため項目に含めない
 insert into review_items (name, sort_order)
 select v.name, v.ord
 from (values
-  ('コート数', 1),
-  ('路面(滑りにくさ)', 2),
-  ('広さ', 3),
-  ('設備', 4),
-  ('アクセス', 5)
+  ('路面(滑りにくさ)', 1),
+  ('広さ', 2),
+  ('設備', 3),
+  ('アクセス', 4)
 ) as v(name, ord)
 where not exists (select 1 from review_items);
 
