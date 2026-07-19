@@ -44,9 +44,9 @@ export const NAV_ITEMS: NavItem[] = [
     short: "スコア",
     icon: (
       <svg viewBox="0 0 24 24" {...s}>
-        <ellipse cx="9" cy="8.5" rx="5.8" ry="6.5" />
-        <path d="M9 15v6.2" />
-        <circle cx="18" cy="17" r="2.4" />
+        <rect x="4.5" y="3" width="9" height="11.5" rx="2.6" />
+        <path d="M9 14.5V21.5" />
+        <circle cx="18" cy="17.5" r="2.3" />
       </svg>
     ),
   },

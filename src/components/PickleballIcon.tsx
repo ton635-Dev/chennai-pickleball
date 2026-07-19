@@ -1,17 +1,17 @@
-// ピックルボールのアイコン(パドル + 穴あきボール)。currentColor で着色。
+// ピックルボールのアイコン(角丸長方形のパドル + 穴あきボール)。currentColor で着色。
 
 export function PickleballIcon({ className }: { className?: string }) {
   return (
     <svg viewBox="0 0 24 24" className={className} aria-hidden="true">
-      {/* パドルの面 */}
-      <ellipse cx="8.6" cy="8" rx="6" ry="6.8" fill="currentColor" />
+      {/* パドルの面(角丸長方形) */}
+      <rect x="4.3" y="2.8" width="9.4" height="12" rx="2.8" fill="currentColor" />
       {/* グリップ */}
-      <rect x="6.8" y="13.4" width="3.6" height="8.2" rx="1.8" fill="currentColor" />
+      <rect x="7.5" y="14" width="3" height="7.4" rx="1.5" fill="currentColor" />
       {/* ボール(穴あき) */}
-      <circle cx="18" cy="16.8" r="4.1" fill="currentColor" />
-      <circle cx="16.7" cy="15.6" r="0.72" fill="#fff" />
-      <circle cx="19.1" cy="15.9" r="0.72" fill="#fff" />
-      <circle cx="17.6" cy="18.1" r="0.72" fill="#fff" />
+      <circle cx="17.4" cy="17.2" r="3.6" fill="currentColor" />
+      <circle cx="16.4" cy="16.1" r="0.66" fill="#fff" />
+      <circle cx="18.4" cy="16.5" r="0.66" fill="#fff" />
+      <circle cx="17.2" cy="18.3" r="0.66" fill="#fff" />
     </svg>
   );
 }
@@ -29,12 +29,12 @@ export function PickleballLineIcon({ className }: { className?: string }) {
       className={className}
       aria-hidden="true"
     >
-      {/* パドルの面 */}
-      <ellipse cx="9" cy="8.5" rx="5.8" ry="6.5" />
+      {/* パドルの面(角丸長方形) */}
+      <rect x="4.5" y="3" width="9" height="11.5" rx="2.6" />
       {/* グリップ */}
-      <path d="M9 15v6.2" />
+      <path d="M9 14.5V21.5" />
       {/* ボール */}
-      <circle cx="18" cy="17" r="2.4" />
+      <circle cx="17.5" cy="17.5" r="2.3" />
     </svg>
   );
 }
