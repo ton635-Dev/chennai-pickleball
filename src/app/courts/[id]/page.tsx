@@ -99,7 +99,7 @@ export default async function CourtDetailPage({
           </a>
         )}
         {court.note && (
-          <p className="mt-3 border-t border-line pt-3 text-[13px] leading-relaxed">
+          <p className="mt-3 whitespace-pre-line border-t border-line pt-3 text-[13px] leading-relaxed">
             {court.note}
           </p>
         )}

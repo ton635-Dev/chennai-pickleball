@@ -96,9 +96,9 @@ export default async function EventDetailPage({
             </div>
           )}
           {ev.note && (
-            <div className="flex items-center gap-2 py-2.5 text-sm">
+            <div className="flex items-start gap-2 py-2.5 text-sm">
               <span className="w-5 text-center">📝</span>
-              <span>{ev.note}</span>
+              <span className="whitespace-pre-line">{ev.note}</span>
             </div>
           )}
         </div>
