@@ -77,17 +77,16 @@ export async function getEventWithAttendance(
 ): Promise<EventWithAttendance | null> {
   const sb = getServerSupabase();
   if (!sb) return null;
-  const { data: ev } = await sb
-    .from("events")
-    .select("*")
-    .eq("id", id)
-    .maybeSingle();
+  // どちらも URL の id をキーにするため並列取得できる
+  const [{ data: ev }, { data: atts }] = await Promise.all([
+    sb.from("events").select("*").eq("id", id).maybeSingle(),
+    sb
+      .from("attendances")
+      .select("*, member:members(id, name)")
+      .eq("event_id", id)
+      .order("updated_at", { ascending: true }),
+  ]);
   if (!ev) return null;
-  const { data: atts } = await sb
-    .from("attendances")
-    .select("*, member:members(id, name)")
-    .eq("event_id", id)
-    .order("updated_at", { ascending: true });
   return withCounts(ev as EventRow, (atts as AttendanceWithMember[]) ?? []);
 }
 

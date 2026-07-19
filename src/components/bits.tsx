@@ -1,6 +1,16 @@
 import { initial } from "@/lib/format";
 import type { AttendanceStatus } from "@/lib/types";
 
+/** 読み込み中のスケルトン(パルスするグレーの箱) */
+export function Skeleton({ className = "" }: { className?: string }) {
+  return <div className={`animate-pulse rounded-lg bg-line/70 ${className}`} />;
+}
+
+/** カード型のスケルトン枠 */
+export function SkeletonCard({ children }: { children: React.ReactNode }) {
+  return <div className="card mb-3 p-4">{children}</div>;
+}
+
 export function Avatar({
   name,
   className = "",

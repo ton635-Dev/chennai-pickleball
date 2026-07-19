@@ -26,8 +26,10 @@ function statusMap(ev: EventWithAttendance): Record<string, AttendanceStatus> {
 }
 
 export default async function HomePage() {
-  const events = await getEventsWithAttendance();
-  const recent = await getRecentMatches(3);
+  const [events, recent] = await Promise.all([
+    getEventsWithAttendance(),
+    getRecentMatches(3),
+  ]);
   const appUrl = getAppUrl();
 
   const upcoming = events.filter((e) => isUpcoming(e.event_date));
