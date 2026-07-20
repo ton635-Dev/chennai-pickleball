@@ -9,6 +9,7 @@ import {
 } from "@/lib/format";
 import { getAppUrl } from "@/lib/supabase/config";
 import { buildAnnouncementText, buildRosterText } from "@/lib/whatsapp";
+import { buildGoogleCalendarUrl } from "@/lib/gcal";
 import { EventRsvpPanel } from "@/components/EventRsvpPanel";
 import { EventActions } from "@/components/EventActions";
 import { PayerUpiSection } from "@/components/PayerUpiSection";
@@ -66,6 +67,17 @@ export default async function EventDetailPage({
           {formatTimeRange(ev.start_time, ev.end_time)}
         </div>
         <div className="mt-2.5">
+          <div className="flex items-center gap-2 border-b border-line py-2.5 text-sm">
+            <span className="w-5 text-center">📅</span>
+            <a
+              href={buildGoogleCalendarUrl(ev, appUrl)}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="font-bold text-primary underline"
+            >
+              Googleカレンダーに追加
+            </a>
+          </div>
           {ev.place_name && (
             <div className="flex items-center gap-2 border-b border-line py-2.5 text-sm">
               <span className="w-5 text-center">📍</span>
