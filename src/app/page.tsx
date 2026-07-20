@@ -11,6 +11,7 @@ import {
 } from "@/lib/format";
 import { getAppUrl } from "@/lib/supabase/config";
 import { buildAnnouncementText } from "@/lib/whatsapp";
+import { buildGoogleCalendarUrl } from "@/lib/gcal";
 import { RsvpControl } from "@/components/RsvpControl";
 import { ShareButton } from "@/components/ShareButton";
 import { MyRsvpChip } from "@/components/MyRsvpChip";
@@ -98,12 +99,20 @@ export default async function HomePage() {
                 size="compact"
               />
             </div>
-            <div className="mt-3">
+            <div className="mt-3 flex items-center justify-between gap-3">
+              <a
+                href={buildGoogleCalendarUrl(next, appUrl)}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="text-[13px] font-bold text-accent underline"
+              >
+                📅 カレンダーに追加
+              </a>
               <Link
                 href={`/events/${next.id}`}
                 className="text-[13px] font-bold text-accent underline"
               >
-                詳細・参加者リストを見る →
+                詳細・参加者リスト →
               </Link>
             </div>
           </div>
