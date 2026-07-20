@@ -32,10 +32,10 @@ export function NameSuggestInput({
 
   const excludeSet = new Set(exclude.map((s) => s.trim()).filter(Boolean));
   const v = value.trim();
+  // 件数上限は設けない(全登録メンバーから選べる。リストはスクロール)
   const list = suggestions
     .filter((s) => !excludeSet.has(s))
-    .filter((s) => !v || s.toLowerCase().includes(v.toLowerCase()))
-    .slice(0, 8);
+    .filter((s) => !v || s.toLowerCase().includes(v.toLowerCase()));
   // 入力値と完全一致の候補1件だけなら選択済みとみなして隠す
   const show = open && list.length > 0 && !(list.length === 1 && list[0] === v);
 
@@ -54,7 +54,7 @@ export function NameSuggestInput({
         className={className}
       />
       {show && (
-        <div className="absolute inset-x-0 top-full z-30 mt-1 max-h-44 overflow-y-auto rounded-xl border border-line bg-surface shadow-lg">
+        <div className="absolute inset-x-0 top-full z-30 mt-1 max-h-64 overflow-y-auto rounded-xl border border-line bg-surface shadow-lg">
           {list.map((s) => {
             const pick = () => {
               onChange(s);
