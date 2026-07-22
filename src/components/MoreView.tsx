@@ -4,7 +4,7 @@ import { useState, type ReactNode } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useMember } from "./MemberProvider";
-import { updateMemberName, deleteMember } from "@/app/actions";
+import { updateMemberName, deleteMember, findMembersByName } from "@/app/actions";
 import { Avatar } from "./bits";
 import { PickleballIcon } from "./PickleballIcon";
 import { UpiQrManager } from "./UpiQrManager";
@@ -35,11 +35,19 @@ export function MoreView({ stats }: { stats: MemberStat[] }) {
   const [editName, setEditName] = useState("");
   const [confirm, setConfirm] = useState<MemberStat | null>(null);
   const [rowBusy, setRowBusy] = useState(false);
+  // 同名が既にある場合の選択(自分の改名時)
+  const [dupes, setDupes] = useState<{ id: string; name: string }[] | null>(null);
+  const [rowError, setRowError] = useState<string | null>(null);
 
   const saveSelf = async () => {
     if (!member || !name.trim()) return;
     setBusy(true);
     try {
+      const existing = await findMembersByName(name, member.id);
+      if (existing.length > 0) {
+        setDupes(existing);
+        return;
+      }
       const res = await updateMemberName(member.id, name);
       setMember({ id: res.id, name: res.name });
       setSaved(true);
@@ -58,7 +66,16 @@ export function MoreView({ stats }: { stats: MemberStat[] }) {
   const saveEdit = async (m: MemberStat) => {
     if (!editName.trim()) return;
     setRowBusy(true);
+    setRowError(null);
     try {
+      // 他のメンバーと同名になる変更は防ぐ
+      const existing = await findMembersByName(editName, m.id);
+      if (existing.length > 0) {
+        setRowError(
+          `「${editName.trim()}」はすでに使われています。別の名前にしてください。`
+        );
+        return;
+      }
       const res = await updateMemberName(m.id, editName);
       // 自分を変更した場合は端末の保存名も更新
       if (member?.id === m.id) setMember({ id: res.id, name: res.name });
@@ -150,6 +167,9 @@ export function MoreView({ stats }: { stats: MemberStat[] }) {
         <h2 className="mb-2.5 text-sm font-extrabold text-muted">
           メンバー一覧(参加回数)
         </h2>
+        {rowError && (
+          <p className="mb-2 text-sm text-red-600">{rowError}</p>
+        )}
         {stats.length === 0 ? (
           <p className="py-4 text-center text-xs text-muted">
             まだメンバーがいません
@@ -219,6 +239,48 @@ export function MoreView({ stats }: { stats: MemberStat[] }) {
           })
         )}
       </div>
+
+      {/* 改名時に同名が存在: 既存アカウントに切り替える or 別名にする */}
+      {dupes && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4">
+          <div className="card w-full max-w-xs p-5">
+            <p className="text-[15px] font-bold">
+              「{name.trim()}」はすでに登録されています
+            </p>
+            <p className="mt-1 text-xs leading-relaxed text-muted">
+              同じ方なら、その既存アカウントに切り替えると、これまでの出欠・記録を引き継げます。
+            </p>
+            <div className="mt-3 space-y-2">
+              {dupes.map((m) => (
+                <button
+                  key={m.id}
+                  onClick={() => {
+                    setMember({ id: m.id, name: m.name });
+                    setDupes(null);
+                    router.refresh();
+                  }}
+                  className="flex w-full items-center gap-2.5 rounded-xl border-2 border-primary bg-[#E2F3EE] px-3 py-2.5 text-left"
+                >
+                  <Avatar name={m.name} className="h-7 w-7 shrink-0 text-[11px]" />
+                  <span className="flex-1 text-sm font-bold">{m.name}</span>
+                  <span className="text-[11px] font-bold text-primary-dark">
+                    切り替える
+                  </span>
+                </button>
+              ))}
+            </div>
+            <button
+              onClick={() => {
+                setDupes(null);
+                setName(member?.name ?? "");
+              }}
+              className="btn-pill mt-3 w-full border border-line bg-surface py-2.5 text-sm font-bold text-muted"
+            >
+              別の名前にする
+            </button>
+          </div>
+        </div>
+      )}
 
       {/* 削除確認 */}
       {confirm && (

@@ -115,6 +115,23 @@ export async function deleteMember(id: string, byMemberId: string | null) {
   revalidatePath("/more");
 }
 
+/**
+ * 同じ表示名のメンバーを探す(重複登録の防止用)。
+ * 前後の空白と大文字小文字を無視して比較する。
+ */
+export async function findMembersByName(
+  name: string,
+  excludeId?: string
+): Promise<{ id: string; name: string }[]> {
+  const trimmed = name.trim();
+  if (!trimmed) return [];
+  const { data } = await sb().from("members").select("id, name");
+  const key = trimmed.toLowerCase();
+  return ((data as { id: string; name: string }[]) ?? []).filter(
+    (m) => m.name.trim().toLowerCase() === key && m.id !== excludeId
+  );
+}
+
 export async function createMember(name: string) {
   const trimmed = name.trim();
   if (!trimmed) throw new Error("名前を入力してください");

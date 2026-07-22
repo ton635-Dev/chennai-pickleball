@@ -3,7 +3,7 @@
 import { useEffect, useState } from "react";
 import { usePathname } from "next/navigation";
 import { useMember } from "./MemberProvider";
-import { createMember, listMembers } from "@/app/actions";
+import { createMember, listMembers, findMembersByName } from "@/app/actions";
 import { initial } from "@/lib/format";
 import { PickleballIcon } from "./PickleballIcon";
 
@@ -19,6 +19,8 @@ export function MemberGate() {
   const [members, setMembers] = useState<{ id: string; name: string }[]>([]);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  // 同名が既に登録されている場合の候補(重複登録の防止)
+  const [dupes, setDupes] = useState<{ id: string; name: string }[] | null>(null);
 
   useEffect(() => {
     if (loaded && !member && tab === "existing" && members.length === 0) {
@@ -31,11 +33,17 @@ export function MemberGate() {
   // カジュアルスコアボードは登録なしでも使えるようにゲートを出さない
   if (!loaded || member || pathname.startsWith("/scoreboard")) return null;
 
+  /** 同名チェック → 重複があれば選択させ、無ければ新規作成 */
   async function handleRegister() {
     if (!name.trim()) return;
     setBusy(true);
     setError(null);
     try {
+      const existing = await findMembersByName(name);
+      if (existing.length > 0) {
+        setDupes(existing);
+        return;
+      }
       const m = await createMember(name);
       setMember({ id: m.id, name: m.name });
     } catch (e) {
@@ -77,7 +85,42 @@ export function MemberGate() {
           </button>
         </div>
 
-        {tab === "new" ? (
+        {dupes ? (
+          <div>
+            <div className="mb-3 rounded-xl border-l-4 border-amber bg-[#FBF0DC] p-3 text-[13px] leading-relaxed text-[#7a5410]">
+              「{name.trim()}」はすでに登録されています。
+              <b>同じ方なら既存のアカウントを選んでください</b>
+              （これまでの出欠・記録がそのまま引き継がれます）。
+            </div>
+            <div className="mb-3 max-h-48 overflow-y-auto">
+              {dupes.map((m) => (
+                <button
+                  key={m.id}
+                  onClick={() => setMember(m)}
+                  className="flex w-full items-center gap-3 rounded-xl border-2 border-primary bg-[#E2F3EE] px-3 py-3 text-left"
+                >
+                  <span className="flex h-8 w-8 items-center justify-center rounded-full bg-primary text-xs font-extrabold text-white">
+                    {initial(m.name)}
+                  </span>
+                  <span className="flex-1 text-base font-bold">{m.name}</span>
+                  <span className="text-xs font-bold text-primary-dark">
+                    これを使う
+                  </span>
+                </button>
+              ))}
+            </div>
+            <button
+              onClick={() => setDupes(null)}
+              className="btn-pill w-full border-2 border-line bg-surface py-3 text-sm font-bold text-ink"
+            >
+              別の名前にする
+            </button>
+            <p className="mt-2 text-[11px] leading-relaxed text-muted">
+              別人で同じ名前の場合は「別の名前にする」で区別できる名前(例:
+              {name.trim()}2)にしてください。
+            </p>
+          </div>
+        ) : tab === "new" ? (
           <div>
             <input
               value={name}
@@ -92,7 +135,7 @@ export function MemberGate() {
               disabled={busy || !name.trim()}
               className="btn-pill w-full bg-primary py-3 text-base text-white disabled:opacity-50"
             >
-              {busy ? "登録中…" : "登録して始める"}
+              {busy ? "確認中…" : "登録して始める"}
             </button>
           </div>
         ) : (
