@@ -8,6 +8,7 @@ export const dynamic = "force-dynamic";
 const FORMAT_LABEL: Record<string, string> = {
   single_elim: "トーナメント",
   round_robin: "リーグ戦",
+  team_league: "団体戦",
 };
 const STATUS: Record<string, { label: string; cls: string }> = {
   draft: { label: "準備中", cls: "bg-[#EDF1EF] text-muted" },

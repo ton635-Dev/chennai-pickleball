@@ -8,6 +8,7 @@ import {
 import { EntryManager } from "@/components/EntryManager";
 import { BracketView } from "@/components/BracketView";
 import { LeagueView } from "@/components/LeagueView";
+import { TeamLeagueView } from "@/components/TeamLeagueView";
 import { TournamentActions } from "@/components/TournamentActions";
 
 export const dynamic = "force-dynamic";
@@ -61,8 +62,12 @@ export default async function TournamentDetailPage({
             </span>
           </div>
           <div className="text-[11px] text-muted">
-            {tournament.format === "single_elim" ? "トーナメント" : "リーグ戦"}・
-            {tournament.discipline === "doubles" ? "ダブルス" : "シングルス"}
+            {tournament.format === "single_elim"
+              ? "トーナメント"
+              : tournament.format === "team_league"
+                ? `団体戦(${tournament.games_per_tie ?? 3}ゲーム・${tournament.points_per_game ?? 7}点)`
+                : "リーグ戦"}
+            ・{tournament.discipline === "doubles" ? "ダブルス" : "シングルス"}
           </div>
         </div>
         <TournamentActions
@@ -82,6 +87,8 @@ export default async function TournamentDetailPage({
         />
       ) : tournament.format === "single_elim" ? (
         <BracketView tournament={tournament} entries={entries} matches={matches} />
+      ) : tournament.format === "team_league" ? (
+        <TeamLeagueView tournament={tournament} entries={entries} matches={matches} />
       ) : (
         <LeagueView tournament={tournament} entries={entries} matches={matches} />
       )}

@@ -70,6 +70,7 @@ npm install
    - 続けて `supabase/phase2-courts.sql` も **Run**(コート関連テーブル・評価項目・写真用Storageバケットを作成)
    - 続けて `supabase/phase3-tournaments.sql` も **Run**(大会・エントリー・組み合わせテーブルを作成)
    - 続けて `supabase/phase4-payments.sql` も **Run**(コート使用費の割り勘・UPIコード用のカラムとStorageバケットを作成)
+   - 続けて `supabase/phase5-team-league.sql` も **Run**(団体戦: チーム対抗リーグ用のカラムを作成)
 3. **Project Settings > API** から以下をコピー
    - `Project URL`
    - `anon public` キー

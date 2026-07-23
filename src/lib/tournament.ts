@@ -171,6 +171,113 @@ interface MatchResult {
   status: string;
 }
 
+// ---------------------------------------------------------------------
+// 団体戦(1対戦 = 複数ゲーム)
+// ---------------------------------------------------------------------
+export interface TieGameLike {
+  s1: number | null;
+  s2: number | null;
+}
+
+export interface TeamMatchLike {
+  entry1_id: string | null;
+  entry2_id: string | null;
+  games?: TieGameLike[] | null;
+  status: string;
+}
+
+/** 1対戦のゲーム集計(取得ゲーム数・総得点) */
+export function summarizeTie(games: TieGameLike[] | null | undefined) {
+  let g1 = 0;
+  let g2 = 0;
+  let p1 = 0;
+  let p2 = 0;
+  let played = 0;
+  for (const g of games ?? []) {
+    if (g.s1 == null || g.s2 == null) continue;
+    played += 1;
+    p1 += g.s1;
+    p2 += g.s2;
+    if (g.s1 > g.s2) g1 += 1;
+    else if (g.s2 > g.s1) g2 += 1;
+  }
+  return { gamesWon1: g1, gamesWon2: g2, points1: p1, points2: p2, played };
+}
+
+export interface TeamStandingRow {
+  entryId: string;
+  wins: number; // 対戦の勝ち数
+  losses: number;
+  ties: number; // 引き分け(ゲーム数が同数)
+  gamesWon: number; // 勝ちゲーム数(全対戦の累計)
+  gamesLost: number;
+  pointsFor: number;
+  pointsAgainst: number;
+  diff: number;
+  played: number; // 消化した対戦数
+}
+
+/**
+ * 団体戦の順位。
+ * 並び順: 勝敗数 → 勝ゲーム数(累計) → 得失点差 → 総得点
+ */
+export function computeTeamStandings(
+  entryIds: string[],
+  matches: TeamMatchLike[]
+): TeamStandingRow[] {
+  const rows = new Map<string, TeamStandingRow>();
+  for (const id of entryIds) {
+    rows.set(id, {
+      entryId: id,
+      wins: 0,
+      losses: 0,
+      ties: 0,
+      gamesWon: 0,
+      gamesLost: 0,
+      pointsFor: 0,
+      pointsAgainst: 0,
+      diff: 0,
+      played: 0,
+    });
+  }
+  for (const m of matches) {
+    if (m.status !== "done" || !m.entry1_id || !m.entry2_id) continue;
+    const r1 = rows.get(m.entry1_id);
+    const r2 = rows.get(m.entry2_id);
+    if (!r1 || !r2) continue;
+    const s = summarizeTie(m.games);
+    r1.gamesWon += s.gamesWon1;
+    r1.gamesLost += s.gamesWon2;
+    r2.gamesWon += s.gamesWon2;
+    r2.gamesLost += s.gamesWon1;
+    r1.pointsFor += s.points1;
+    r1.pointsAgainst += s.points2;
+    r2.pointsFor += s.points2;
+    r2.pointsAgainst += s.points1;
+    r1.played += 1;
+    r2.played += 1;
+    if (s.gamesWon1 > s.gamesWon2) {
+      r1.wins += 1;
+      r2.losses += 1;
+    } else if (s.gamesWon2 > s.gamesWon1) {
+      r2.wins += 1;
+      r1.losses += 1;
+    } else {
+      r1.ties += 1;
+      r2.ties += 1;
+    }
+  }
+  return Array.from(rows.values())
+    .map((r) => ({ ...r, diff: r.pointsFor - r.pointsAgainst }))
+    .sort(
+      (a, b) =>
+        b.wins - a.wins ||
+        b.gamesWon - a.gamesWon ||
+        b.diff - a.diff ||
+        b.pointsFor - a.pointsFor
+    );
+}
+
 export function computeStandings(
   entryIds: string[],
   matches: MatchResult[]

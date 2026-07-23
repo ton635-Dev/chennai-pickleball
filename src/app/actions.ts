@@ -12,7 +12,10 @@ import {
   generateRoundRobin,
   generateSingleElim,
   computeStandings,
+  computeTeamStandings,
+  summarizeTie,
 } from "@/lib/tournament";
+import type { TieGame } from "@/lib/types";
 
 class NotConfiguredError extends Error {
   constructor() {
@@ -436,6 +439,10 @@ export interface TournamentInput {
   format: TournamentFormat;
   discipline: "singles" | "doubles";
   event_id?: string | null;
+  /** 団体戦: 1対戦あたりのゲーム数(既定3) */
+  games_per_tie?: number;
+  /** 団体戦: 1ゲームの点数(既定7) */
+  points_per_game?: number;
 }
 
 export async function createTournament(
@@ -448,10 +455,12 @@ export async function createTournament(
     .insert({
       name: input.name.trim(),
       format: input.format,
-      discipline: input.discipline,
+      discipline: input.format === "team_league" ? "doubles" : input.discipline,
       event_id: input.event_id || null,
       status: "draft",
       created_by: createdBy,
+      games_per_tie: input.games_per_tie ?? 3,
+      points_per_game: input.points_per_game ?? 7,
     })
     .select("id")
     .single();
@@ -459,6 +468,26 @@ export async function createTournament(
   await log("tournament", data.id, createdBy, "create", "大会を作成");
   revalidatePath("/tournaments");
   return data.id as string;
+}
+
+/** 団体戦: チーム(チーム名 + 構成メンバー3〜4人)を追加 */
+export async function addTeamEntry(
+  tournamentId: string,
+  teamName: string,
+  playerNames: string[]
+) {
+  const name = teamName.trim();
+  const players = playerNames.map((p) => p.trim()).filter(Boolean);
+  if (!name) throw new Error("チーム名を入力してください");
+  if (players.length < 3 || players.length > 4)
+    throw new Error("チームのメンバーは3〜4人で入力してください");
+  const { error } = await sb().from("tournament_entries").insert({
+    tournament_id: tournamentId,
+    name,
+    player_names: players,
+  });
+  if (error) throw new Error(error.message);
+  revalidatePath(`/tournaments/${tournamentId}`);
 }
 
 export async function addTournamentEntries(
@@ -676,6 +705,115 @@ export async function setTournamentMatchResult(
   }
 
   await log("tournament", match.tournament_id, memberId, "result", "試合結果を入力");
+  revalidatePath(`/tournaments/${match.tournament_id}`);
+  revalidatePath("/tournaments");
+}
+
+/**
+ * 団体戦: 1対戦のゲーム内訳を保存。
+ * 全ゲームのスコアが揃ったら勝敗を確定し、全対戦終了で優勝チームを記録
+ * (順位は 勝敗 → 勝ゲーム数 → 得失点差)。
+ */
+export async function setTieResult(
+  matchId: string,
+  games: TieGame[],
+  memberId: string | null
+) {
+  const client = sb();
+  const { data: m, error: me } = await client
+    .from("tournament_matches")
+    .select("*")
+    .eq("id", matchId)
+    .single();
+  if (me || !m) throw new Error("試合が見つかりません");
+  const match = m as TournamentMatch;
+  if (!match.entry1_id || !match.entry2_id)
+    throw new Error("対戦相手が未確定です");
+
+  const { data: t } = await client
+    .from("tournaments")
+    .select("id, games_per_tie")
+    .eq("id", match.tournament_id)
+    .single();
+  const perTie = (t?.games_per_tie as number) ?? 3;
+
+  // 入力の正規化(ゲーム番号順・点数は0以上の整数のみ)
+  const clean: TieGame[] = games.slice(0, perTie).map((g, i) => ({
+    g: i + 1,
+    s1: g.s1 != null && g.s1 >= 0 ? Math.floor(g.s1) : null,
+    s2: g.s2 != null && g.s2 >= 0 ? Math.floor(g.s2) : null,
+    p1: g.p1?.trim() || null,
+    p2: g.p2?.trim() || null,
+  }));
+  for (const g of clean) {
+    if ((g.s1 == null) !== (g.s2 == null))
+      throw new Error(`ゲーム${g.g}は両チームのスコアを入力してください`);
+    if (g.s1 != null && g.s2 != null && g.s1 === g.s2)
+      throw new Error(`ゲーム${g.g}が同点です(勝敗をつけてください)`);
+  }
+
+  const s = summarizeTie(clean);
+  const allPlayed = s.played === perTie;
+  const winner = !allPlayed
+    ? null
+    : s.gamesWon1 > s.gamesWon2
+      ? match.entry1_id
+      : match.entry2_id;
+
+  const { error } = await client
+    .from("tournament_matches")
+    .update({
+      games: clean,
+      score1: s.gamesWon1,
+      score2: s.gamesWon2,
+      winner_entry_id: winner,
+      status: allPlayed ? "done" : "pending",
+    })
+    .eq("id", matchId);
+  if (error) throw new Error(error.message);
+
+  // 結果を未確定に戻した場合は大会も開催中に戻す
+  if (!allPlayed) {
+    await client
+      .from("tournaments")
+      .update({ status: "ongoing", champion: null, updated_at: new Date().toISOString() })
+      .eq("id", match.tournament_id)
+      .eq("status", "done");
+  }
+
+  // 全対戦が終わったら優勝チームを記録
+  if (allPlayed) {
+    const [{ data: allMatches }, { data: entries }] = await Promise.all([
+      client
+        .from("tournament_matches")
+        .select("*")
+        .eq("tournament_id", match.tournament_id),
+      client
+        .from("tournament_entries")
+        .select("id, name")
+        .eq("tournament_id", match.tournament_id),
+    ]);
+    const ms = (allMatches as TournamentMatch[]) ?? [];
+    if (ms.length > 0 && ms.every((x) => x.status === "done")) {
+      const ents = (entries as { id: string; name: string }[]) ?? [];
+      const standings = computeTeamStandings(
+        ents.map((e) => e.id),
+        ms
+      );
+      const champName =
+        ents.find((e) => e.id === standings[0]?.entryId)?.name ?? null;
+      await client
+        .from("tournaments")
+        .update({
+          champion: champName,
+          status: "done",
+          updated_at: new Date().toISOString(),
+        })
+        .eq("id", match.tournament_id);
+    }
+  }
+
+  await log("tournament", match.tournament_id, memberId, "result", "対戦結果を入力");
   revalidatePath(`/tournaments/${match.tournament_id}`);
   revalidatePath("/tournaments");
 }

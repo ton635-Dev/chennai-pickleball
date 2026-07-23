@@ -23,6 +23,9 @@ export function TournamentForm({ events = [] }: { events?: EventOpt[] }) {
   const [format, setFormat] = useState<TournamentFormat>("single_elim");
   const [discipline, setDiscipline] = useState<"singles" | "doubles">("doubles");
   const [eventId, setEventId] = useState("");
+  // 団体戦の設定
+  const [gamesPerTie, setGamesPerTie] = useState("3");
+  const [pointsPerGame, setPointsPerGame] = useState("7");
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -35,7 +38,20 @@ export function TournamentForm({ events = [] }: { events?: EventOpt[] }) {
     setError(null);
     try {
       const id = await createTournament(
-        { name, format, discipline, event_id: eventId || null },
+        {
+          name,
+          format,
+          discipline,
+          event_id: eventId || null,
+          games_per_tie:
+            format === "team_league"
+              ? Math.max(1, parseInt(gamesPerTie, 10) || 3)
+              : undefined,
+          points_per_game:
+            format === "team_league"
+              ? Math.max(1, parseInt(pointsPerGame, 10) || 7)
+              : undefined,
+        },
         member?.id ?? null
       );
       router.push(`/tournaments/${id}`);
@@ -102,21 +118,66 @@ export function TournamentForm({ events = [] }: { events?: EventOpt[] }) {
             set={setFormat}
             options={[
               { k: "single_elim", l: "トーナメント" },
-              { k: "round_robin", l: "リーグ戦(総当たり)" },
+              { k: "round_robin", l: "リーグ戦" },
+              { k: "team_league", l: "団体戦" },
             ]}
           />
+          {format === "team_league" && (
+            <p className="mt-1.5 text-[11px] leading-relaxed text-muted">
+              チーム(3〜4人)同士の総当たり戦。1対戦につきダブルスを複数ゲーム行い、
+              勝敗 → 勝ゲーム数 → 得失点差で順位を決めます。
+            </p>
+          )}
         </div>
-        <div>
-          <label className={label}>種目</label>
-          <Seg
-            value={discipline}
-            set={setDiscipline}
-            options={[
-              { k: "doubles", l: "ダブルス" },
-              { k: "singles", l: "シングルス" },
-            ]}
-          />
-        </div>
+        {format !== "team_league" && (
+          <div>
+            <label className={label}>種目</label>
+            <Seg
+              value={discipline}
+              set={setDiscipline}
+              options={[
+                { k: "doubles", l: "ダブルス" },
+                { k: "singles", l: "シングルス" },
+              ]}
+            />
+          </div>
+        )}
+        {format === "team_league" && (
+          <div className="flex gap-3">
+            <div className="flex-1">
+              <label className={label}>1対戦のゲーム数</label>
+              <input
+                type="text"
+                inputMode="numeric"
+                value={gamesPerTie}
+                onChange={(e) =>
+                  setGamesPerTie(e.target.value.replace(/[^0-9]/g, "").slice(0, 1))
+                }
+                onBlur={() => {
+                  if (!gamesPerTie || parseInt(gamesPerTie, 10) < 1)
+                    setGamesPerTie("3");
+                }}
+                className={field}
+              />
+            </div>
+            <div className="flex-1">
+              <label className={label}>1ゲームの点数</label>
+              <input
+                type="text"
+                inputMode="numeric"
+                value={pointsPerGame}
+                onChange={(e) =>
+                  setPointsPerGame(e.target.value.replace(/[^0-9]/g, "").slice(0, 2))
+                }
+                onBlur={() => {
+                  if (!pointsPerGame || parseInt(pointsPerGame, 10) < 1)
+                    setPointsPerGame("7");
+                }}
+                className={field}
+              />
+            </div>
+          </div>
+        )}
         {events.length > 0 && (
           <div>
             <label className={label}>活動日に紐づけ(任意)</label>

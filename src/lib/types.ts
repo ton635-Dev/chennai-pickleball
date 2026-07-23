@@ -64,7 +64,7 @@ export interface EventWithAttendance extends EventRow {
   payer?: PayerInfo | null;
 }
 
-export type TournamentFormat = "single_elim" | "round_robin";
+export type TournamentFormat = "single_elim" | "round_robin" | "team_league";
 export type TournamentStatus = "draft" | "ongoing" | "done";
 
 export interface Tournament {
@@ -79,6 +79,10 @@ export interface Tournament {
   archived: boolean;
   created_at: string;
   updated_at: string;
+  /** 団体戦: 1対戦あたりのゲーム数(既定3) */
+  games_per_tie?: number;
+  /** 団体戦: 1ゲームの点数(既定7) */
+  points_per_game?: number;
 }
 
 export interface TournamentEntry {
@@ -89,6 +93,17 @@ export interface TournamentEntry {
   member1_id: string | null;
   member2_id: string | null;
   created_at: string;
+  /** 団体戦: チームの構成メンバー(3〜4人) */
+  player_names?: string[];
+}
+
+/** 団体戦: 1対戦の中の1ゲーム */
+export interface TieGame {
+  g: number; // ゲーム番号(1..N)
+  s1: number | null; // チーム1の得点
+  s2: number | null; // チーム2の得点
+  p1?: string | null; // チーム1の出場ペア(任意)
+  p2?: string | null; // チーム2の出場ペア(任意)
 }
 
 export interface TournamentMatch {
@@ -104,6 +119,8 @@ export interface TournamentMatch {
   status: "pending" | "done";
   court: string | null;
   created_at: string;
+  /** 団体戦: ゲーム内訳 */
+  games?: TieGame[];
 }
 
 export interface CourtRow {

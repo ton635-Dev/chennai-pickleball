@@ -6,14 +6,15 @@ import { useMember } from "./MemberProvider";
 import { NameSuggestInput } from "./NameSuggestInput";
 import {
   addTournamentEntries,
+  addTeamEntry,
   deleteTournamentEntry,
   generateBracket,
 } from "@/app/actions";
-import type { TournamentEntry } from "@/lib/types";
+import type { TournamentEntry, TournamentFormat } from "@/lib/types";
 
 interface Props {
   tournamentId: string;
-  format: "single_elim" | "round_robin";
+  format: TournamentFormat;
   discipline: "singles" | "doubles";
   entries: TournamentEntry[];
   memberNames: string[];
@@ -37,17 +38,28 @@ export function EntryManager({
   // ダブルス: 2人選択でペア作成
   const [p1, setP1] = useState("");
   const [p2, setP2] = useState("");
+  // 団体戦: チーム名 + メンバー3〜4人
+  const [teamName, setTeamName] = useState("");
+  const [teamPlayers, setTeamPlayers] = useState<string[]>(["", "", "", ""]);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  // 既にエントリー済みの名前(ペア名は「・」で分解して個人名も対象に)
+  const isTeam = format === "team_league";
+
+  // 既にエントリー済みの名前(ペア名は「・」で分解、チームは構成メンバーも対象に)
   const usedNames = new Set<string>();
   for (const e of entries) {
     usedNames.add(e.name);
     for (const part of e.name.split("・")) usedNames.add(part.trim());
+    for (const p of e.player_names ?? []) usedNames.add(p.trim());
   }
+  const pendingTeam = teamPlayers.map((p) => p.trim()).filter(Boolean);
   const availableParticipants = eventParticipants.filter(
-    (p) => !usedNames.has(p) && p !== p1.trim() && p !== p2.trim()
+    (p) =>
+      !usedNames.has(p) &&
+      p !== p1.trim() &&
+      p !== p2.trim() &&
+      !pendingTeam.includes(p)
   );
 
   const add = async (name: string) => {
@@ -77,8 +89,32 @@ export function EntryManager({
     }
   };
 
-  /** 参加者チップ: ダブルスは空いている選手枠に入れる / シングルスは直接追加 */
+  /** 団体戦: チームを追加 */
+  const addTeam = async () => {
+    setBusy(true);
+    setError(null);
+    try {
+      await addTeamEntry(tournamentId, teamName, teamPlayers);
+      setTeamName("");
+      setTeamPlayers(["", "", "", ""]);
+      router.refresh();
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "追加に失敗しました");
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const setTeamPlayer = (i: number, v: string) =>
+    setTeamPlayers((arr) => arr.map((x, j) => (j === i ? v : x)));
+
+  /** 参加者チップ: 形式ごとに空いている枠へ入れる */
   const onChipTap = (name: string) => {
+    if (isTeam) {
+      const idx = teamPlayers.findIndex((p) => !p.trim());
+      if (idx >= 0) setTeamPlayer(idx, name);
+      return;
+    }
     if (discipline === "singles") {
       add(name);
       return;
@@ -115,7 +151,12 @@ export function EntryManager({
         <button
           key={p}
           onClick={() => onChipTap(p)}
-          disabled={busy || (discipline === "doubles" && !!p1.trim() && !!p2.trim())}
+          disabled={
+            busy ||
+            (isTeam
+              ? teamPlayers.every((x) => !!x.trim())
+              : discipline === "doubles" && !!p1.trim() && !!p2.trim())
+          }
           className="rounded-pill border border-line bg-bg px-3 py-1.5 text-xs font-bold text-primary-dark disabled:opacity-40"
         >
           ＋ {p}
@@ -135,9 +176,11 @@ export function EntryManager({
         </h2>
         {entries.length === 0 ? (
           <p className="py-2 text-center text-xs text-muted">
-            {discipline === "doubles"
-              ? "2人を選んでペアを作成するか、チーム名を直接入力してください"
-              : "選手名を追加してください"}
+            {isTeam
+              ? "チーム名とメンバー(3〜4人)を入力して追加してください"
+              : discipline === "doubles"
+                ? "2人を選んでペアを作成するか、チーム名を直接入力してください"
+                : "選手名を追加してください"}
           </p>
         ) : (
           <div className="space-y-1.5">
@@ -149,7 +192,14 @@ export function EntryManager({
                 <span className="w-6 shrink-0 text-center text-xs font-extrabold text-muted">
                   {i + 1}
                 </span>
-                <span className="flex-1 font-bold">{e.name}</span>
+                <span className="min-w-0 flex-1">
+                  <span className="block font-bold">{e.name}</span>
+                  {(e.player_names?.length ?? 0) > 0 && (
+                    <span className="block truncate text-[11px] text-muted">
+                      {e.player_names!.join("・")}
+                    </span>
+                  )}
+                </span>
                 <button
                   onClick={() => remove(e.id)}
                   disabled={busy}
@@ -162,7 +212,53 @@ export function EntryManager({
           </div>
         )}
 
-        {discipline === "doubles" ? (
+        {isTeam ? (
+          <>
+            {/* 団体戦: チーム名 + メンバー3〜4人 */}
+            <div className="mt-4">
+              <div className="mb-1.5 text-[11px] font-bold text-muted">
+                チーム名
+              </div>
+              <input
+                value={teamName}
+                onChange={(e) => setTeamName(e.target.value)}
+                placeholder="例: チームA"
+                className={inputCls}
+              />
+              <div className="mb-1.5 mt-3 text-[11px] font-bold text-muted">
+                メンバー(3〜4人)
+              </div>
+              <div className="grid grid-cols-2 gap-2">
+                {teamPlayers.map((p, i) => (
+                  <NameSuggestInput
+                    key={i}
+                    value={p}
+                    onChange={(v) => setTeamPlayer(i, v)}
+                    suggestions={memberNames}
+                    exclude={[
+                      ...usedList,
+                      ...teamPlayers.filter((_, j) => j !== i),
+                    ]}
+                    placeholder={`メンバー${i + 1}${i === 3 ? "(任意)" : ""}`}
+                    className={inputCls}
+                  />
+                ))}
+              </div>
+              {chips}
+              <button
+                onClick={addTeam}
+                disabled={busy || !teamName.trim() || pendingTeam.length < 3}
+                className="btn-pill mt-2 w-full bg-navy py-2.5 text-sm text-white disabled:opacity-50"
+              >
+                {!teamName.trim()
+                  ? "チーム名を入力してください"
+                  : pendingTeam.length < 3
+                    ? "メンバーを3人以上入力してください"
+                    : `「${teamName.trim()}」(${pendingTeam.length}人)を追加`}
+              </button>
+            </div>
+          </>
+        ) : discipline === "doubles" ? (
           <>
             {/* 2人選択でペア作成(チーム名自動) */}
             <div className="mt-4">
