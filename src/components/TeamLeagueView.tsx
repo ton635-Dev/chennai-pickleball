@@ -237,6 +237,12 @@ export function TeamLeagueView({ tournament, entries, matches }: Props) {
           pointsPerGame={tournament.points_per_game ?? 7}
           name1={name(dialog.entry1_id)}
           name2={name(dialog.entry2_id)}
+          players1={
+            dialog.entry1_id ? byId.get(dialog.entry1_id)?.player_names ?? [] : []
+          }
+          players2={
+            dialog.entry2_id ? byId.get(dialog.entry2_id)?.player_names ?? [] : []
+          }
           onClose={() => setDialog(null)}
         />
       )}
@@ -253,6 +259,8 @@ function TieResultDialog({
   pointsPerGame,
   name1,
   name2,
+  players1,
+  players2,
   onClose,
 }: {
   match: TournamentMatch;
@@ -260,6 +268,8 @@ function TieResultDialog({
   pointsPerGame: number;
   name1: string;
   name2: string;
+  players1: string[];
+  players2: string[];
   onClose: () => void;
 }) {
   const router = useRouter();
@@ -286,6 +296,65 @@ function TieResultDialog({
   const parseNum = (s: string): number | null => {
     const t = s.replace(/[^0-9]/g, "").slice(0, 2);
     return t === "" ? null : parseInt(t, 10);
+  };
+
+  /** メンバー名タップでペア文字列をトグル(2人まで。3人目は古い方と入れ替え) */
+  const togglePair = (current: string | null | undefined, player: string) => {
+    const parts = (current ?? "")
+      .split("・")
+      .map((s) => s.trim())
+      .filter(Boolean);
+    const idx = parts.indexOf(player);
+    let next: string[];
+    if (idx >= 0) next = parts.filter((_, i) => i !== idx);
+    else if (parts.length >= 2) next = [parts[1], player];
+    else next = [...parts, player];
+    return next.join("・");
+  };
+
+  /** ペアのトグルを最新stateに対して適用(連続タップでも取りこぼさない) */
+  const togglePlayerIn = (i: number, side: "p1" | "p2", player: string) =>
+    setGames((arr) =>
+      arr.map((gg, j) =>
+        j === i ? { ...gg, [side]: togglePair(gg[side], player) } : gg
+      )
+    );
+
+  const PairChips = ({
+    players,
+    value,
+    onToggle,
+  }: {
+    players: string[];
+    value: string | null | undefined;
+    onToggle: (player: string) => void;
+  }) => {
+    if (players.length === 0) return null;
+    const selected = (value ?? "")
+      .split("・")
+      .map((s) => s.trim())
+      .filter(Boolean);
+    return (
+      <div className="mt-1 flex flex-wrap gap-1">
+        {players.map((p) => {
+          const sel = selected.includes(p);
+          return (
+            <button
+              key={p}
+              type="button"
+              onClick={() => onToggle(p)}
+              className={`rounded-pill px-2.5 py-1 text-[11px] font-bold ${
+                sel
+                  ? "bg-primary text-white"
+                  : "border border-line bg-surface text-primary-dark"
+              }`}
+            >
+              {p}
+            </button>
+          );
+        })}
+      </div>
+    );
   };
 
   const save = async () => {
@@ -339,6 +408,11 @@ function TieResultDialog({
                   className={scoreCls}
                 />
               </div>
+              <PairChips
+                players={players1}
+                value={g.p1}
+                onToggle={(p) => togglePlayerIn(i, "p1", p)}
+              />
               <div className="mt-1.5 flex items-center gap-2">
                 <input
                   value={g.p2 ?? ""}
@@ -355,6 +429,11 @@ function TieResultDialog({
                   className={scoreCls}
                 />
               </div>
+              <PairChips
+                players={players2}
+                value={g.p2}
+                onToggle={(p) => togglePlayerIn(i, "p2", p)}
+              />
             </div>
           ))}
         </div>
