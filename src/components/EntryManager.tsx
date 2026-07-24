@@ -4,6 +4,7 @@ import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { useMember } from "./MemberProvider";
 import { NameSuggestInput } from "./NameSuggestInput";
+import { TeamAutoAssign } from "./TeamAutoAssign";
 import {
   addTournamentEntries,
   addTeamEntry,
@@ -257,6 +258,20 @@ export function EntryManager({
                     : `「${teamName.trim()}」(${pendingTeam.length}人)を追加`}
               </button>
             </div>
+
+            {/* 自動振り分け */}
+            <div className="my-3 flex items-center gap-2 text-[10px] font-bold text-muted">
+              <span className="h-px flex-1 bg-line" />
+              または 参加者から自動でチーム分け
+              <span className="h-px flex-1 bg-line" />
+            </div>
+            <TeamAutoAssign
+              tournamentId={tournamentId}
+              candidates={[
+                ...new Set([...eventParticipants, ...memberNames]),
+              ].filter((p) => !usedNames.has(p) && !pendingTeam.includes(p))}
+              existingTeamCount={entries.length}
+            />
           </>
         ) : discipline === "doubles" ? (
           <>

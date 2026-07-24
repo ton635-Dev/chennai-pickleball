@@ -490,6 +490,25 @@ export async function addTeamEntry(
   revalidatePath(`/tournaments/${tournamentId}`);
 }
 
+/** 自動振り分け結果などのチームを一括登録 */
+export async function addTeamEntriesBulk(
+  tournamentId: string,
+  teams: { name: string; players: string[] }[]
+) {
+  const rows = teams.map((t) => {
+    const name = t.name.trim();
+    const players = t.players.map((p) => p.trim()).filter(Boolean);
+    if (!name) throw new Error("チーム名が空です");
+    if (players.length < 3 || players.length > 4)
+      throw new Error(`「${name}」のメンバーは3〜4人にしてください`);
+    return { tournament_id: tournamentId, name, player_names: players };
+  });
+  if (rows.length === 0) return;
+  const { error } = await sb().from("tournament_entries").insert(rows);
+  if (error) throw new Error(error.message);
+  revalidatePath(`/tournaments/${tournamentId}`);
+}
+
 export async function addTournamentEntries(
   tournamentId: string,
   names: string[]
