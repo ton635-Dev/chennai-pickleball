@@ -31,6 +31,14 @@ export default function RootLayout({
 }) {
   return (
     <html lang="ja">
+      <head>
+        {/* 利用状況の計測ビーコン */}
+        <script
+          defer
+          src="https://app-hub-6rf.pages.dev/beacon.js"
+          data-app="chennai-pickleball"
+        />
+      </head>
       <body>
         {!isSupabaseConfigured && (
           <div className="bg-amber px-4 py-2 text-center text-[13px] font-bold text-navy">
