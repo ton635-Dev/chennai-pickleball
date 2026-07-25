@@ -21,6 +21,11 @@ interface Props {
   entries: TournamentEntry[];
   memberNames: string[];
   eventParticipants: string[];
+  /** 団体戦: 想定チーム数(null=人数から自動) */
+  teamCount?: number | null;
+  /** 団体戦: 1チームの人数(下限・上限) */
+  teamSizeMin?: number;
+  teamSizeMax?: number;
 }
 
 const inputCls =
@@ -33,6 +38,9 @@ export function EntryManager({
   entries,
   memberNames,
   eventParticipants,
+  teamCount = null,
+  teamSizeMin = 3,
+  teamSizeMax = 4,
 }: Props) {
   const router = useRouter();
   const { member } = useMember();
@@ -40,9 +48,11 @@ export function EntryManager({
   // ダブルス: 2人選択でペア作成
   const [p1, setP1] = useState("");
   const [p2, setP2] = useState("");
-  // 団体戦: チーム名 + メンバー3〜4人
+  // 団体戦: チーム名 + メンバー(設定人数の上限ぶんの入力欄)
   const [teamName, setTeamName] = useState("");
-  const [teamPlayers, setTeamPlayers] = useState<string[]>(["", "", "", ""]);
+  const [teamPlayers, setTeamPlayers] = useState<string[]>(
+    Array.from({ length: Math.max(1, teamSizeMax) }, () => "")
+  );
   // エントリー名の編集(チーム名の変更など)
   const [editingId, setEditingId] = useState<string | null>(null);
   const [editName, setEditName] = useState("");
@@ -101,7 +111,7 @@ export function EntryManager({
     try {
       await addTeamEntry(tournamentId, teamName, teamPlayers);
       setTeamName("");
-      setTeamPlayers(["", "", "", ""]);
+      setTeamPlayers(Array.from({ length: Math.max(1, teamSizeMax) }, () => ""));
       router.refresh();
     } catch (e) {
       setError(e instanceof Error ? e.message : "追加に失敗しました");
@@ -198,7 +208,11 @@ export function EntryManager({
         {entries.length === 0 ? (
           <p className="py-2 text-center text-xs text-muted">
             {isTeam
-              ? "チーム名とメンバー(3〜4人)を入力して追加してください"
+              ? `チーム名とメンバー(${
+                  teamSizeMin === teamSizeMax
+                    ? `${teamSizeMin}人`
+                    : `${teamSizeMin}〜${teamSizeMax}人`
+                })を入力して追加してください`
               : discipline === "doubles"
                 ? "2人を選んでペアを作成するか、チーム名を直接入力してください"
                 : "選手名を追加してください"}
@@ -285,7 +299,11 @@ export function EntryManager({
                 className={inputCls}
               />
               <div className="mb-1.5 mt-3 text-[11px] font-bold text-muted">
-                メンバー(3〜4人)
+                メンバー(
+                {teamSizeMin === teamSizeMax
+                  ? `${teamSizeMin}人`
+                  : `${teamSizeMin}〜${teamSizeMax}人`}
+                )
               </div>
               <div className="grid grid-cols-2 gap-2">
                 {teamPlayers.map((p, i) => (
@@ -298,7 +316,9 @@ export function EntryManager({
                       ...usedList,
                       ...teamPlayers.filter((_, j) => j !== i),
                     ]}
-                    placeholder={`メンバー${i + 1}${i === 3 ? "(任意)" : ""}`}
+                    placeholder={`メンバー${i + 1}${
+                      i + 1 > teamSizeMin ? "(任意)" : ""
+                    }`}
                     className={inputCls}
                   />
                 ))}
@@ -306,13 +326,15 @@ export function EntryManager({
               {chips}
               <button
                 onClick={addTeam}
-                disabled={busy || !teamName.trim() || pendingTeam.length < 3}
+                disabled={
+                  busy || !teamName.trim() || pendingTeam.length < teamSizeMin
+                }
                 className="btn-pill mt-2 w-full bg-navy py-2.5 text-sm text-white disabled:opacity-50"
               >
                 {!teamName.trim()
                   ? "チーム名を入力してください"
-                  : pendingTeam.length < 3
-                    ? "メンバーを3人以上入力してください"
+                  : pendingTeam.length < teamSizeMin
+                    ? `メンバーを${teamSizeMin}人以上入力してください`
                     : `「${teamName.trim()}」(${pendingTeam.length}人)を追加`}
               </button>
             </div>
@@ -329,6 +351,9 @@ export function EntryManager({
                 ...new Set([...eventParticipants, ...memberNames]),
               ].filter((p) => !usedNames.has(p) && !pendingTeam.includes(p))}
               existingTeamCount={entries.length}
+              defaultTeamCount={teamCount}
+              sizeMin={teamSizeMin}
+              sizeMax={teamSizeMax}
             />
           </>
         ) : discipline === "doubles" ? (

@@ -83,6 +83,11 @@ export interface Tournament {
   games_per_tie?: number;
   /** 団体戦: 1ゲームの点数(既定7) */
   points_per_game?: number;
+  /** 団体戦: 想定チーム数(自動振り分けの既定。null=人数から自動) */
+  team_count?: number | null;
+  /** 団体戦: 1チームの人数(下限・上限。既定3〜4) */
+  team_size_min?: number;
+  team_size_max?: number;
 }
 
 export interface TournamentEntry {

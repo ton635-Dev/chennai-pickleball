@@ -2,10 +2,15 @@
 // - 1チーム3〜4人になるチーム数のみ許可
 // - 「分散」指定メンバーはなるべく別チームへ(チーム数より多い場合も均等に散らす)
 
-/** 1チーム3〜4人で成立するチーム数の候補(2チーム以上) */
-export function validTeamCounts(n: number): number[] {
+/**
+ * 1チーム min〜max 人で成立するチーム数の候補(2チーム以上)。
+ * 既定は 3〜4人(従来の挙動)。
+ */
+export function validTeamCounts(n: number, min = 3, max = 4): number[] {
+  const lo = Math.max(1, min);
+  const hi = Math.max(lo, max);
   const out: number[] = [];
-  for (let t = Math.max(2, Math.ceil(n / 4)); t <= Math.floor(n / 3); t++) {
+  for (let t = Math.max(2, Math.ceil(n / hi)); t <= Math.floor(n / lo); t++) {
     out.push(t);
   }
   return out;

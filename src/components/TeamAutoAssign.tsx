@@ -15,6 +15,11 @@ interface Props {
   candidates: string[];
   /** 既にエントリー済みの人数(チーム名の連番用) */
   existingTeamCount: number;
+  /** 大会設定の想定チーム数(あれば初期選択) */
+  defaultTeamCount?: number | null;
+  /** 1チームの人数(下限・上限) */
+  sizeMin?: number;
+  sizeMax?: number;
 }
 
 /**
@@ -25,6 +30,9 @@ export function TeamAutoAssign({
   tournamentId,
   candidates,
   existingTeamCount,
+  defaultTeamCount = null,
+  sizeMin = 3,
+  sizeMax = 4,
 }: Props) {
   const router = useRouter();
   const [open, setOpen] = useState(false);
@@ -36,9 +44,14 @@ export function TeamAutoAssign({
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  const counts = validTeamCounts(pool.length);
+  const counts = validTeamCounts(pool.length, sizeMin, sizeMax);
+  // 明示選択 → 大会設定のチーム数 → 候補の先頭
   const activeCount =
-    teamCount && counts.includes(teamCount) ? teamCount : counts[0] ?? null;
+    teamCount && counts.includes(teamCount)
+      ? teamCount
+      : defaultTeamCount && counts.includes(defaultTeamCount)
+        ? defaultTeamCount
+        : counts[0] ?? null;
 
   const togglePool = (name: string) => {
     setPreview(null);
@@ -193,13 +206,16 @@ export function TeamAutoAssign({
 
       {/* 3) チーム数 */}
       <div className="mb-1 mt-3 text-[11px] font-bold text-muted">
-        3. チーム数(1チーム3〜4人)
+        3. チーム数(1チーム
+        {sizeMin === sizeMax ? `${sizeMin}人` : `${sizeMin}〜${sizeMax}人`})
       </div>
       {counts.length === 0 ? (
         <p className="text-[11px] text-muted">
-          {pool.length < 6
-            ? "6人以上選ぶとチーム分けできます"
-            : "この人数では3〜4人のチームに分けられません(人数を調整してください)"}
+          {pool.length < sizeMin * 2
+            ? `${sizeMin * 2}人以上選ぶとチーム分けできます`
+            : `この人数では${
+                sizeMin === sizeMax ? `${sizeMin}人` : `${sizeMin}〜${sizeMax}人`
+              }のチームに分けられません(人数を調整してください)`}
         </p>
       ) : (
         <div className="flex gap-2">

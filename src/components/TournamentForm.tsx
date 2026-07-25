@@ -26,6 +26,9 @@ export function TournamentForm({ events = [] }: { events?: EventOpt[] }) {
   // 団体戦の設定
   const [gamesPerTie, setGamesPerTie] = useState("3");
   const [pointsPerGame, setPointsPerGame] = useState("7");
+  const [teamCount, setTeamCount] = useState(""); // 空欄=人数から自動
+  const [sizeMin, setSizeMin] = useState("3");
+  const [sizeMax, setSizeMax] = useState("4");
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -50,6 +53,21 @@ export function TournamentForm({ events = [] }: { events?: EventOpt[] }) {
           points_per_game:
             format === "team_league"
               ? Math.max(1, parseInt(pointsPerGame, 10) || 7)
+              : undefined,
+          team_count:
+            format === "team_league" && teamCount
+              ? Math.max(2, parseInt(teamCount, 10))
+              : null,
+          team_size_min:
+            format === "team_league"
+              ? Math.max(1, parseInt(sizeMin, 10) || 3)
+              : undefined,
+          team_size_max:
+            format === "team_league"
+              ? Math.max(
+                  Math.max(1, parseInt(sizeMin, 10) || 3),
+                  parseInt(sizeMax, 10) || 4
+                )
               : undefined,
         },
         member?.id ?? null
@@ -124,7 +142,7 @@ export function TournamentForm({ events = [] }: { events?: EventOpt[] }) {
           />
           {format === "team_league" && (
             <p className="mt-1.5 text-[11px] leading-relaxed text-muted">
-              チーム(3〜4人)同士の総当たり戦。1対戦につきダブルスを複数ゲーム行い、
+              チーム同士の総当たり戦。1対戦につきダブルスを複数ゲーム行い、
               勝敗 → 勝ゲーム数 → 得失点差で順位を決めます。
             </p>
           )}
@@ -141,6 +159,62 @@ export function TournamentForm({ events = [] }: { events?: EventOpt[] }) {
               ]}
             />
           </div>
+        )}
+        {format === "team_league" && (
+          <>
+            <div className="flex gap-3">
+              <div className="flex-1">
+                <label className={label}>チーム数</label>
+                <input
+                  type="text"
+                  inputMode="numeric"
+                  value={teamCount}
+                  onChange={(e) =>
+                    setTeamCount(e.target.value.replace(/[^0-9]/g, "").slice(0, 2))
+                  }
+                  placeholder="空欄=人数から自動"
+                  className={field}
+                />
+              </div>
+              <div className="flex-1">
+                <label className={label}>1チームの人数</label>
+                <div className="flex items-center gap-1.5">
+                  <input
+                    type="text"
+                    inputMode="numeric"
+                    value={sizeMin}
+                    onChange={(e) =>
+                      setSizeMin(e.target.value.replace(/[^0-9]/g, "").slice(0, 2))
+                    }
+                    onBlur={() => {
+                      if (!sizeMin || parseInt(sizeMin, 10) < 1) setSizeMin("3");
+                    }}
+                    aria-label="1チームの人数(下限)"
+                    className={`${field} text-center`}
+                  />
+                  <span className="shrink-0 text-xs font-bold text-muted">〜</span>
+                  <input
+                    type="text"
+                    inputMode="numeric"
+                    value={sizeMax}
+                    onChange={(e) =>
+                      setSizeMax(e.target.value.replace(/[^0-9]/g, "").slice(0, 2))
+                    }
+                    onBlur={() => {
+                      const lo = Math.max(1, parseInt(sizeMin, 10) || 3);
+                      if (!sizeMax || parseInt(sizeMax, 10) < lo)
+                        setSizeMax(String(lo));
+                    }}
+                    aria-label="1チームの人数(上限)"
+                    className={`${field} text-center`}
+                  />
+                </div>
+              </div>
+            </div>
+            <p className="-mt-2 text-[11px] leading-relaxed text-muted">
+              人数の幅を持たせると端数を吸収できます(例: 3〜4人)。同じ人数に固定したい場合は両方に同じ数を入力してください。
+            </p>
+          </>
         )}
         {format === "team_league" && (
           <div className="flex gap-3">

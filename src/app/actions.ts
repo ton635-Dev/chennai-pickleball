@@ -443,6 +443,11 @@ export interface TournamentInput {
   games_per_tie?: number;
   /** 団体戦: 1ゲームの点数(既定7) */
   points_per_game?: number;
+  /** 団体戦: 想定チーム数(未指定=人数から自動) */
+  team_count?: number | null;
+  /** 団体戦: 1チームの人数(下限・上限。既定3〜4) */
+  team_size_min?: number;
+  team_size_max?: number;
 }
 
 export async function createTournament(
@@ -461,6 +466,9 @@ export async function createTournament(
       created_by: createdBy,
       games_per_tie: input.games_per_tie ?? 3,
       points_per_game: input.points_per_game ?? 7,
+      team_count: input.team_count ?? null,
+      team_size_min: input.team_size_min ?? 3,
+      team_size_max: input.team_size_max ?? 4,
     })
     .select("id")
     .single();
@@ -470,7 +478,20 @@ export async function createTournament(
   return data.id as string;
 }
 
-/** 団体戦: チーム(チーム名 + 構成メンバー3〜4人)を追加 */
+/** 大会に設定された1チームの人数(下限・上限)を取得 */
+async function teamSizeRange(
+  tournamentId: string
+): Promise<{ min: number; max: number }> {
+  const { data } = await sb()
+    .from("tournaments")
+    .select("team_size_min, team_size_max")
+    .eq("id", tournamentId)
+    .maybeSingle();
+  const row = data as { team_size_min?: number; team_size_max?: number } | null;
+  return { min: row?.team_size_min ?? 3, max: row?.team_size_max ?? 4 };
+}
+
+/** 団体戦: チーム(チーム名 + 構成メンバー)を追加 */
 export async function addTeamEntry(
   tournamentId: string,
   teamName: string,
@@ -479,8 +500,13 @@ export async function addTeamEntry(
   const name = teamName.trim();
   const players = playerNames.map((p) => p.trim()).filter(Boolean);
   if (!name) throw new Error("チーム名を入力してください");
-  if (players.length < 3 || players.length > 4)
-    throw new Error("チームのメンバーは3〜4人で入力してください");
+  const { min, max } = await teamSizeRange(tournamentId);
+  if (players.length < min || players.length > max)
+    throw new Error(
+      min === max
+        ? `チームのメンバーは${min}人で入力してください`
+        : `チームのメンバーは${min}〜${max}人で入力してください`
+    );
   const { error } = await sb().from("tournament_entries").insert({
     tournament_id: tournamentId,
     name,
@@ -495,12 +521,15 @@ export async function addTeamEntriesBulk(
   tournamentId: string,
   teams: { name: string; players: string[] }[]
 ) {
+  const { min, max } = await teamSizeRange(tournamentId);
   const rows = teams.map((t) => {
     const name = t.name.trim();
     const players = t.players.map((p) => p.trim()).filter(Boolean);
     if (!name) throw new Error("チーム名が空です");
-    if (players.length < 3 || players.length > 4)
-      throw new Error(`「${name}」のメンバーは3〜4人にしてください`);
+    if (players.length < min || players.length > max)
+      throw new Error(
+        `「${name}」のメンバーは${min === max ? `${min}人` : `${min}〜${max}人`}にしてください`
+      );
     return { tournament_id: tournamentId, name, player_names: players };
   });
   if (rows.length === 0) return;

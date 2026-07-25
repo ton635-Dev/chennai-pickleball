@@ -84,6 +84,9 @@ export default async function TournamentDetailPage({
           entries={entries}
           memberNames={memberNames}
           eventParticipants={eventParticipants}
+          teamCount={tournament.team_count ?? null}
+          teamSizeMin={tournament.team_size_min ?? 3}
+          teamSizeMax={tournament.team_size_max ?? 4}
         />
       ) : tournament.format === "single_elim" ? (
         <BracketView tournament={tournament} entries={entries} matches={matches} />
