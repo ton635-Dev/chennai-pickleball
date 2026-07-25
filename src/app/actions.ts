@@ -523,6 +523,22 @@ export async function addTournamentEntries(
   revalidatePath(`/tournaments/${tournamentId}`);
 }
 
+/** エントリー名(チーム名/ペア名/選手名)を変更 */
+export async function renameTournamentEntry(
+  entryId: string,
+  tournamentId: string,
+  newName: string
+) {
+  const name = newName.trim();
+  if (!name) throw new Error("名前を入力してください");
+  const { error } = await sb()
+    .from("tournament_entries")
+    .update({ name })
+    .eq("id", entryId);
+  if (error) throw new Error(error.message);
+  revalidatePath(`/tournaments/${tournamentId}`);
+}
+
 export async function deleteTournamentEntry(entryId: string, tournamentId: string) {
   const { error } = await sb()
     .from("tournament_entries")

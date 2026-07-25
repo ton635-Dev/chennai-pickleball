@@ -9,6 +9,7 @@ import {
   addTournamentEntries,
   addTeamEntry,
   deleteTournamentEntry,
+  renameTournamentEntry,
   generateBracket,
 } from "@/app/actions";
 import type { TournamentEntry, TournamentFormat } from "@/lib/types";
@@ -42,6 +43,9 @@ export function EntryManager({
   // 団体戦: チーム名 + メンバー3〜4人
   const [teamName, setTeamName] = useState("");
   const [teamPlayers, setTeamPlayers] = useState<string[]>(["", "", "", ""]);
+  // エントリー名の編集(チーム名の変更など)
+  const [editingId, setEditingId] = useState<string | null>(null);
+  const [editName, setEditName] = useState("");
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -134,6 +138,22 @@ export function EntryManager({
     }
   };
 
+  /** エントリー名(チーム名など)の変更を保存 */
+  const saveRename = async (id: string) => {
+    if (!editName.trim()) return;
+    setBusy(true);
+    setError(null);
+    try {
+      await renameTournamentEntry(id, tournamentId, editName);
+      setEditingId(null);
+      router.refresh();
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "変更に失敗しました");
+    } finally {
+      setBusy(false);
+    }
+  };
+
   const generate = async () => {
     setBusy(true);
     setError(null);
@@ -193,21 +213,59 @@ export function EntryManager({
                 <span className="w-6 shrink-0 text-center text-xs font-extrabold text-muted">
                   {i + 1}
                 </span>
-                <span className="min-w-0 flex-1">
-                  <span className="block font-bold">{e.name}</span>
-                  {(e.player_names?.length ?? 0) > 0 && (
-                    <span className="block truncate text-[11px] text-muted">
-                      {e.player_names!.join("・")}
+                {editingId === e.id ? (
+                  <>
+                    <input
+                      value={editName}
+                      onChange={(ev) => setEditName(ev.target.value)}
+                      onKeyDown={(ev) => ev.key === "Enter" && saveRename(e.id)}
+                      autoFocus
+                      className="min-w-0 flex-1 rounded-lg border border-line bg-bg px-2.5 py-1.5 text-sm outline-none focus:border-primary"
+                    />
+                    <button
+                      onClick={() => saveRename(e.id)}
+                      disabled={busy || !editName.trim()}
+                      className="btn-pill shrink-0 bg-primary px-3 py-1.5 text-xs text-white disabled:opacity-50"
+                    >
+                      保存
+                    </button>
+                    <button
+                      onClick={() => setEditingId(null)}
+                      className="shrink-0 px-1 text-xs font-bold text-muted"
+                    >
+                      取消
+                    </button>
+                  </>
+                ) : (
+                  <>
+                    <span className="min-w-0 flex-1">
+                      <span className="block font-bold">{e.name}</span>
+                      {(e.player_names?.length ?? 0) > 0 && (
+                        <span className="block truncate text-[11px] text-muted">
+                          {e.player_names!.join("・")}
+                        </span>
+                      )}
                     </span>
-                  )}
-                </span>
-                <button
-                  onClick={() => remove(e.id)}
-                  disabled={busy}
-                  className="shrink-0 rounded-lg px-2 py-1 text-xs font-bold text-muted hover:text-red-600"
-                >
-                  ✕
-                </button>
+                    <button
+                      onClick={() => {
+                        setEditingId(e.id);
+                        setEditName(e.name);
+                      }}
+                      disabled={busy}
+                      className="shrink-0 rounded-lg border border-line px-2.5 py-1 text-xs font-bold text-ink"
+                      aria-label={`${e.name}の名前を変更`}
+                    >
+                      編集
+                    </button>
+                    <button
+                      onClick={() => remove(e.id)}
+                      disabled={busy}
+                      className="shrink-0 rounded-lg px-2 py-1 text-xs font-bold text-muted hover:text-red-600"
+                    >
+                      ✕
+                    </button>
+                  </>
+                )}
               </div>
             ))}
           </div>

@@ -3,7 +3,7 @@
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { computeTeamStandings, summarizeTie } from "@/lib/tournament";
-import { setTieResult } from "@/app/actions";
+import { setTieResult, renameTournamentEntry } from "@/app/actions";
 import { useMember } from "./MemberProvider";
 import type {
   TieGame,
@@ -22,11 +22,28 @@ const CIRCLED = ["①", "②", "③", "④", "⑤", "⑥", "⑦", "⑧", "⑨", 
 const circle = (i: number) => CIRCLED[i] ?? `${i + 1}`;
 
 export function TeamLeagueView({ tournament, entries, matches }: Props) {
+  const router = useRouter();
   const [tab, setTab] = useState<"rank" | "table" | "list">("rank");
   const [dialog, setDialog] = useState<TournamentMatch | null>(null);
+  // チーム名の変更(開催中・終了後も可)
+  const [editingId, setEditingId] = useState<string | null>(null);
+  const [editName, setEditName] = useState("");
+  const [renameBusy, setRenameBusy] = useState(false);
 
   const byId = new Map(entries.map((e) => [e.id, e]));
   const name = (id: string | null) => (id ? byId.get(id)?.name ?? "?" : "?");
+
+  const saveRename = async (id: string) => {
+    if (!editName.trim()) return;
+    setRenameBusy(true);
+    try {
+      await renameTournamentEntry(id, tournament.id, editName);
+      setEditingId(null);
+      router.refresh();
+    } finally {
+      setRenameBusy(false);
+    }
+  };
 
   const standings = computeTeamStandings(
     entries.map((e) => e.id),
@@ -94,23 +111,62 @@ export function TeamLeagueView({ tournament, entries, matches }: Props) {
                 >
                   {i + 1}
                 </span>
-                <span className="min-w-0 flex-1">
-                  <b className="block truncate">{e?.name ?? "?"}</b>
-                  {(e?.player_names?.length ?? 0) > 0 && (
-                    <span className="block truncate text-[10px] text-muted">
-                      {e!.player_names!.join("・")}
+                {editingId === s.entryId ? (
+                  <>
+                    <input
+                      value={editName}
+                      onChange={(ev) => setEditName(ev.target.value)}
+                      onKeyDown={(ev) =>
+                        ev.key === "Enter" && saveRename(s.entryId)
+                      }
+                      autoFocus
+                      className="min-w-0 flex-1 rounded-lg border border-line bg-bg px-2.5 py-1.5 text-sm outline-none focus:border-primary"
+                    />
+                    <button
+                      onClick={() => saveRename(s.entryId)}
+                      disabled={renameBusy || !editName.trim()}
+                      className="btn-pill shrink-0 bg-primary px-3 py-1.5 text-xs text-white disabled:opacity-50"
+                    >
+                      保存
+                    </button>
+                    <button
+                      onClick={() => setEditingId(null)}
+                      className="shrink-0 px-1 text-xs font-bold text-muted"
+                    >
+                      取消
+                    </button>
+                  </>
+                ) : (
+                  <>
+                    <span className="min-w-0 flex-1">
+                      <b className="block truncate">{e?.name ?? "?"}</b>
+                      {(e?.player_names?.length ?? 0) > 0 && (
+                        <span className="block truncate text-[10px] text-muted">
+                          {e!.player_names!.join("・")}
+                        </span>
+                      )}
                     </span>
-                  )}
-                </span>
-                <span className="tabnum w-12 text-right font-extrabold">
-                  {s.wins}-{s.losses}
-                </span>
-                <span className="tabnum w-10 text-right font-extrabold text-primary-dark">
-                  {s.gamesWon}
-                </span>
-                <span className="tabnum w-10 text-right text-xs text-muted">
-                  {s.diff >= 0 ? `+${s.diff}` : s.diff}
-                </span>
+                    <button
+                      onClick={() => {
+                        setEditingId(s.entryId);
+                        setEditName(e?.name ?? "");
+                      }}
+                      className="shrink-0 rounded-lg border border-line px-2 py-1 text-[10px] font-bold text-muted"
+                      aria-label={`${e?.name ?? ""}の名前を変更`}
+                    >
+                      改名
+                    </button>
+                    <span className="tabnum w-12 text-right font-extrabold">
+                      {s.wins}-{s.losses}
+                    </span>
+                    <span className="tabnum w-10 text-right font-extrabold text-primary-dark">
+                      {s.gamesWon}
+                    </span>
+                    <span className="tabnum w-10 text-right text-xs text-muted">
+                      {s.diff >= 0 ? `+${s.diff}` : s.diff}
+                    </span>
+                  </>
+                )}
               </div>
             );
           })}
