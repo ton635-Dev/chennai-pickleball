@@ -832,6 +832,97 @@ export async function setTournamentMatchResult(
  * 全ゲームのスコアが揃ったら勝敗を確定し、全対戦終了で優勝チームを記録
  * (順位は 勝敗 → 勝ゲーム数 → 得失点差)。
  */
+/**
+ * 大会の1対戦のゲーム結果を試合履歴(matches)に同期する。
+ * - スコアが入っているゲームだけを1試合として計上
+ * - 出場ペアが入力済みならその選手名、未入力ならチーム名で記録
+ * - (tie_match_id, tie_game_no) で upsert するため再入力でも重複しない
+ * - スコアを消したゲームの履歴は削除する
+ */
+async function syncTieToHistory(
+  matchId: string,
+  tournamentId: string,
+  entry1Id: string,
+  entry2Id: string,
+  games: TieGame[],
+  memberId: string | null
+) {
+  const client = sb();
+  try {
+    const { data: es } = await client
+      .from("tournament_entries")
+      .select("id, name")
+      .in("id", [entry1Id, entry2Id]);
+    const nameOf = new Map(
+      ((es as { id: string; name: string }[]) ?? []).map((e) => [e.id, e.name])
+    );
+    const team1 = nameOf.get(entry1Id) ?? "チーム1";
+    const team2 = nameOf.get(entry2Id) ?? "チーム2";
+
+    // 出場ペアがあれば選手名の配列に、なければチーム名1件
+    const namesOf = (pair: string | null | undefined, teamName: string) => {
+      const parts = (pair ?? "")
+        .split("・")
+        .map((s) => s.trim())
+        .filter(Boolean);
+      return parts.length > 0 ? parts : [teamName];
+    };
+
+    const played = games.filter((g) => g.s1 != null && g.s2 != null);
+    const rows = played.map((g) => ({
+      tournament_id: tournamentId,
+      tie_match_id: matchId,
+      tie_game_no: g.g,
+      event_id: null,
+      mode: "doubles" as const,
+      team1_names: namesOf(g.p1, team1),
+      team2_names: namesOf(g.p2, team2),
+      team1_score: g.s1 as number,
+      team2_score: g.s2 as number,
+      target_points: 0, // 大会設定の点数は下で上書き
+      winner: (g.s1 as number) > (g.s2 as number) ? 1 : 2,
+      created_by: memberId,
+    }));
+
+    // 大会の1ゲーム点数を target_points に入れる
+    const { data: t } = await client
+      .from("tournaments")
+      .select("points_per_game")
+      .eq("id", tournamentId)
+      .maybeSingle();
+    const pts = (t?.points_per_game as number) ?? 7;
+    for (const r of rows) r.target_points = pts;
+
+    if (rows.length > 0) {
+      const { error } = await client
+        .from("matches")
+        .upsert(rows, { onConflict: "tie_match_id,tie_game_no" });
+      if (error) throw error;
+    }
+
+    // スコアが未入力に戻ったゲームの履歴は削除
+    const playedNos = played.map((g) => g.g);
+    let del = client.from("matches").delete().eq("tie_match_id", matchId);
+    if (playedNos.length > 0) {
+      del = del.not("tie_game_no", "in", `(${playedNos.join(",")})`);
+    }
+    await del;
+
+    revalidatePath("/matches");
+    revalidatePath("/");
+  } catch (e) {
+    // マイグレーション未実行(カラム/インデックスなし)の場合だけ黙って無視する。
+    // それ以外の失敗は呼び出し側に伝えて気づけるようにする。
+    const msg = e instanceof Error ? e.message : String(e);
+    const notMigrated =
+      /column .*(tie_match_id|tie_game_no|tournament_id)/i.test(msg) ||
+      /schema cache/i.test(msg);
+    if (!notMigrated) {
+      throw new Error(`履歴への計上に失敗しました: ${msg}`);
+    }
+  }
+}
+
 export async function setTieResult(
   matchId: string,
   games: TieGame[],
@@ -930,6 +1021,16 @@ export async function setTieResult(
         .eq("id", match.tournament_id);
     }
   }
+
+  // 各ゲームを試合履歴へ計上
+  await syncTieToHistory(
+    matchId,
+    match.tournament_id,
+    match.entry1_id,
+    match.entry2_id,
+    clean,
+    memberId
+  );
 
   await log("tournament", match.tournament_id, memberId, "result", "対戦結果を入力");
   revalidatePath(`/tournaments/${match.tournament_id}`);
@@ -1036,6 +1137,53 @@ export async function setTieGameScore(
   });
 
   await setTieResult(matchId, merged, memberId);
+}
+
+/**
+ * 既存の大会(団体戦)の入力済み結果を、まとめて試合履歴へ取り込む。
+ * すでに計上済みのゲームは上書きされるだけなので、何度実行しても重複しない。
+ */
+export async function importTournamentsToHistory(
+  memberId: string | null
+): Promise<{ tournaments: number; games: number }> {
+  const client = sb();
+  const { data: ts } = await client
+    .from("tournaments")
+    .select("id")
+    .eq("format", "team_league")
+    .eq("archived", false);
+  const tournamentIds = ((ts as { id: string }[]) ?? []).map((t) => t.id);
+  if (tournamentIds.length === 0) return { tournaments: 0, games: 0 };
+
+  const { data: ms } = await client
+    .from("tournament_matches")
+    .select("id, tournament_id, entry1_id, entry2_id, games")
+    .in("tournament_id", tournamentIds);
+
+  let games = 0;
+  const touched = new Set<string>();
+  for (const m of (ms as (Pick<
+    TournamentMatch,
+    "id" | "tournament_id" | "entry1_id" | "entry2_id"
+  > & { games?: TieGame[] })[]) ?? []) {
+    if (!m.entry1_id || !m.entry2_id) continue;
+    const list = (m.games ?? []).filter((g) => g.s1 != null && g.s2 != null);
+    if (list.length === 0) continue;
+    await syncTieToHistory(
+      m.id,
+      m.tournament_id,
+      m.entry1_id,
+      m.entry2_id,
+      m.games ?? [],
+      memberId
+    );
+    games += list.length;
+    touched.add(m.tournament_id);
+  }
+
+  revalidatePath("/matches");
+  revalidatePath("/");
+  return { tournaments: touched.size, games };
 }
 
 export async function setMatchCourt(matchId: string, court: string, tournamentId: string) {

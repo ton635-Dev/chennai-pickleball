@@ -278,17 +278,30 @@ export async function getRecentMatches(limit = 5): Promise<MatchRow[]> {
 
 export interface MatchWithEvent extends MatchRow {
   event: { id: string; event_date: string; place_name: string | null } | null;
+  /** 大会由来の場合の大会情報 */
+  tournament?: { id: string; name: string } | null;
 }
 
-/** 試合履歴(活動日情報つき・新しい順) */
+/** 試合履歴(活動日・大会情報つき・新しい順) */
 export async function getMatches(limit = 200): Promise<MatchWithEvent[]> {
   const sb = getServerSupabase();
   if (!sb) return [];
-  const { data } = await sb
+  const { data, error } = await sb
     .from("matches")
-    .select("*, event:events(id, event_date, place_name)")
+    .select(
+      "*, event:events(id, event_date, place_name), tournament:tournaments(id, name)"
+    )
     .order("created_at", { ascending: false })
     .limit(limit);
+  // 大会カラム未追加(マイグレーション前)でも履歴が壊れないようフォールバック
+  if (error) {
+    const { data: plain } = await sb
+      .from("matches")
+      .select("*, event:events(id, event_date, place_name)")
+      .order("created_at", { ascending: false })
+      .limit(limit);
+    return (plain as MatchWithEvent[]) ?? [];
+  }
   return (data as MatchWithEvent[]) ?? [];
 }
 

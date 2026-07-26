@@ -5,6 +5,7 @@ import type { MatchRow as Match } from "@/lib/types";
 interface Props {
   match: Match & {
     event?: { id: string; event_date: string; place_name: string | null } | null;
+    tournament?: { id: string; name: string } | null;
   };
   showEvent?: boolean;
   showDelete?: boolean;
@@ -17,8 +18,12 @@ export function MatchRow({ match, showEvent = false, showDelete = true }: Props)
   const w2 = match.winner === 2;
   const modeLabel = match.mode === "doubles" ? "ダブルス" : "シングルス";
   const dateStr = formatDateJa(match.created_at.slice(0, 10));
+  const isTournament = !!match.tie_match_id;
 
   const meta: string[] = [`${modeLabel}・${match.target_points}点`];
+  if (isTournament && match.tie_game_no) {
+    meta.push(`G${match.tie_game_no}`);
+  }
   if (showEvent && match.event) {
     meta.push(
       `${formatDateJa(match.event.event_date)}${
@@ -31,6 +36,13 @@ export function MatchRow({ match, showEvent = false, showDelete = true }: Props)
 
   return (
     <div className="border-b border-line py-3 last:border-none">
+      {match.tournament && (
+        <div className="mb-1 text-center">
+          <span className="rounded-pill bg-[#EDF4F1] px-2.5 py-0.5 text-[10px] font-extrabold text-primary-dark">
+            🏆 {match.tournament.name}
+          </span>
+        </div>
+      )}
       <div className="flex items-center gap-2 text-sm">
         <span className={`flex-1 text-right ${w1 ? "font-extrabold" : ""}`}>
           {w1 && <span className="mr-1 text-amber">🏆</span>}

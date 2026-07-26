@@ -2,6 +2,7 @@ import Link from "next/link";
 import { getMatches, getPlayerStats } from "@/lib/data";
 import { MatchRow } from "@/components/MatchRow";
 import { EmptyState } from "@/components/bits";
+import { ImportTournamentsButton } from "@/components/ImportTournamentsButton";
 
 export const dynamic = "force-dynamic";
 
@@ -19,6 +20,8 @@ export default async function MatchesPage() {
           スコアをつける
         </Link>
       </div>
+
+      <ImportTournamentsButton />
 
       {matches.length === 0 ? (
         <EmptyState

@@ -193,6 +193,10 @@ export interface CourtSummary extends CourtRow {
 export interface MatchRow {
   id: string;
   event_id: string | null;
+  /** 大会由来の場合の紐づけ(履歴の重複計上防止・出典表示に使う) */
+  tournament_id?: string | null;
+  tie_match_id?: string | null;
+  tie_game_no?: number | null;
   mode: "singles" | "doubles";
   team1_names: string[];
   team2_names: string[];
