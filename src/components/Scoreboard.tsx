@@ -3,7 +3,7 @@
 import { useCallback, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import { useMember } from "./MemberProvider";
-import { saveMatch } from "@/app/actions";
+import { saveMatch, setTieGameScore } from "@/app/actions";
 import {
   awardRally,
   initialState,
@@ -14,15 +14,27 @@ import {
   type Team,
 } from "@/lib/scoring";
 
+/** 大会(団体戦)のゲームを記録するモードの情報 */
+export interface TieContext {
+  matchId: string;
+  tournamentId: string;
+  tournamentName: string;
+  gameNo: number;
+  gamesPerTie: number;
+  teamName1: string;
+  teamName2: string;
+}
+
 interface Props {
   mode: "singles" | "doubles";
   target: number;
   team1: string[];
   team2: string[];
   eventId?: string | null;
+  tie?: TieContext | null;
 }
 
-export function Scoreboard({ mode, target, team1, team2, eventId }: Props) {
+export function Scoreboard({ mode, target, team1, team2, eventId, tie }: Props) {
   const router = useRouter();
   const { member } = useMember();
   const config: GameConfig = useMemo(() => ({ mode, target }), [mode, target]);
@@ -110,14 +122,23 @@ export function Scoreboard({ mode, target, team1, team2, eventId }: Props) {
       {/* 上部バー */}
       <div className="flex items-center justify-between px-4 pb-2.5 pt-4">
         <button
-          onClick={() => router.push("/scoreboard")}
+          onClick={() =>
+            router.push(tie ? `/tournaments/${tie.tournamentId}` : "/scoreboard")
+          }
           className="flex h-9 w-9 items-center justify-center rounded-full bg-white/10 text-[15px]"
           aria-label="閉じる"
         >
           ✕
         </button>
-        <div className="text-[13px] font-extrabold opacity-85">
-          {modeLabel}・{target}点先取(2点差)
+        <div className="min-w-0 text-center">
+          {tie && (
+            <div className="truncate text-[11px] font-extrabold text-accent">
+              {tie.tournamentName}・ゲーム{tie.gameNo}/{tie.gamesPerTie}
+            </div>
+          )}
+          <div className="text-[13px] font-extrabold opacity-85">
+            {modeLabel}・{target}点先取(2点差)
+          </div>
         </div>
         <div className="w-9" />
       </div>
@@ -158,7 +179,19 @@ export function Scoreboard({ mode, target, team1, team2, eventId }: Props) {
         </button>
       </div>
 
-      {state.finished && (
+      {state.finished && tie && (
+        <TieFinishOverlay
+          tie={tie}
+          scores={state.scores}
+          winnerLabel={state.winner === null ? null : teamLabel(state.winner)}
+          pair1={names[0].join("・")}
+          pair2={names[1].join("・")}
+          onReplay={() => setHistory([initialState(config)])}
+          memberId={member?.id ?? null}
+        />
+      )}
+
+      {state.finished && !tie && (
         <FinishOverlay
           winnerLabel={state.winner === null ? null : teamLabel(state.winner)}
           scores={state.scores}
@@ -243,6 +276,139 @@ function FinishOverlay({
             className="w-full py-2 text-sm font-bold text-muted"
           >
             終了する
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// ---------------------------------------------------------------------
+// 大会モードの終了オーバーレイ
+// スコアを該当ゲームへ保存 → 次のゲームへ続ける / 大会画面へ戻る
+// ---------------------------------------------------------------------
+function TieFinishOverlay({
+  tie,
+  scores,
+  winnerLabel,
+  pair1,
+  pair2,
+  onReplay,
+  memberId,
+}: {
+  tie: TieContext;
+  scores: [number, number];
+  winnerLabel: string | null;
+  pair1: string;
+  pair2: string;
+  onReplay: () => void;
+  memberId: string | null;
+}) {
+  const router = useRouter();
+  const [saved, setSaved] = useState(false);
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  const hasNext = tie.gameNo < tie.gamesPerTie;
+
+  // 出場ペアがチーム名のままなら記録しない(ペア指定時のみ保存)
+  const pairOrNull = (p: string, teamName: string) =>
+    p && p !== teamName ? p : null;
+
+  const save = async (): Promise<boolean> => {
+    setBusy(true);
+    setError(null);
+    try {
+      await setTieGameScore(
+        tie.matchId,
+        tie.gameNo,
+        scores[0],
+        scores[1],
+        pairOrNull(pair1, tie.teamName1),
+        pairOrNull(pair2, tie.teamName2),
+        memberId
+      );
+      setSaved(true);
+      return true;
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "保存に失敗しました");
+      return false;
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const saveAndNext = async () => {
+    if (!(await save())) return;
+    // フルリロードで遷移(前ゲームのスコア状態を確実にリセットするため)
+    window.location.href = `/scoreboard/play?tie=${tie.matchId}&g=${
+      tie.gameNo + 1
+    }`;
+  };
+
+  const saveAndBack = async () => {
+    if (!saved && !(await save())) return;
+    router.push(`/tournaments/${tie.tournamentId}`);
+    router.refresh();
+  };
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-5">
+      <div className="w-full max-w-xs rounded-card bg-surface p-6 text-center text-ink">
+        <div className="text-[11px] font-extrabold text-muted">
+          {tie.tournamentName}・ゲーム{tie.gameNo}
+        </div>
+        <div className="mt-1 text-3xl">🏆</div>
+        <div className="mt-1 text-lg font-extrabold">
+          {winnerLabel ? `${winnerLabel} の勝ち` : "引き分け"}
+        </div>
+        <div className="tabnum mt-1 text-[34px] font-extrabold text-primary">
+          {scores[0]} - {scores[1]}
+        </div>
+        <div className="mt-1 text-[11px] text-muted">
+          {tie.teamName1} {scores[0]} - {scores[1]} {tie.teamName2}
+        </div>
+
+        {saved && (
+          <div className="mt-3 rounded-xl bg-[#E2F3EE] px-3 py-2 text-[12px] font-bold text-primary-dark">
+            ゲーム{tie.gameNo}の結果を保存しました ✓
+          </div>
+        )}
+        {error && <p className="mt-2 text-sm text-red-600">{error}</p>}
+
+        <div className="mt-4 space-y-2">
+          {hasNext ? (
+            <>
+              <button
+                onClick={saveAndNext}
+                disabled={busy}
+                className="btn-pill w-full bg-primary py-3 text-[15px] text-white disabled:opacity-60"
+              >
+                {busy ? "保存中…" : `保存してゲーム${tie.gameNo + 1}へ`}
+              </button>
+              <button
+                onClick={saveAndBack}
+                disabled={busy}
+                className="btn-pill w-full border-2 border-line bg-surface py-3 text-[15px] font-bold text-ink disabled:opacity-60"
+              >
+                保存して大会画面へ
+              </button>
+            </>
+          ) : (
+            <button
+              onClick={saveAndBack}
+              disabled={busy}
+              className="btn-pill w-full bg-primary py-3 text-[15px] text-white disabled:opacity-60"
+            >
+              {busy ? "保存中…" : "保存して大会画面へ"}
+            </button>
+          )}
+          <button
+            onClick={onReplay}
+            disabled={busy}
+            className="w-full py-2 text-sm font-bold text-muted"
+          >
+            やり直す(保存しない)
           </button>
         </div>
       </div>

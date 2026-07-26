@@ -23,7 +23,7 @@ const circle = (i: number) => CIRCLED[i] ?? `${i + 1}`;
 
 export function TeamLeagueView({ tournament, entries, matches }: Props) {
   const router = useRouter();
-  const [tab, setTab] = useState<"rank" | "table" | "list">("rank");
+  const [tab, setTab] = useState<"rank" | "table" | "list" | "teams">("rank");
   const [dialog, setDialog] = useState<TournamentMatch | null>(null);
   // チーム名の変更(開催中・終了後も可)
   const [editingId, setEditingId] = useState<string | null>(null);
@@ -60,7 +60,7 @@ export function TeamLeagueView({ tournament, entries, matches }: Props) {
   const TabBtn = ({ k, label }: { k: typeof tab; label: string }) => (
     <button
       onClick={() => setTab(k)}
-      className={`rounded-pill px-4 py-2 text-[13px] font-extrabold ${
+      className={`shrink-0 rounded-pill px-4 py-2 text-[13px] font-extrabold ${
         tab === k ? "bg-navy text-white" : "border border-line bg-surface text-muted"
       }`}
     >
@@ -79,10 +79,11 @@ export function TeamLeagueView({ tournament, entries, matches }: Props) {
         </div>
       )}
 
-      <div className="mb-3 flex gap-2">
+      <div className="mb-3 flex gap-2 overflow-x-auto pb-0.5">
         <TabBtn k="rank" label="順位" />
         <TabBtn k="table" label="星取表" />
         <TabBtn k="list" label="対戦一覧" />
+        <TabBtn k="teams" label="チーム" />
       </div>
 
       {tab === "rank" && (
@@ -255,34 +256,104 @@ export function TeamLeagueView({ tournament, entries, matches }: Props) {
             const s = summarizeTie(m.games);
             const w1 = done && s.gamesWon1 > s.gamesWon2;
             const w2 = done && s.gamesWon2 > s.gamesWon1;
+            const perTie = tournament.games_per_tie ?? 3;
+            // 次に数えるゲーム(未入力の最初のゲーム)
+            const nextGame =
+              Array.from({ length: perTie }, (_, i) => i + 1).find((no) => {
+                const g = (m.games ?? []).find((x) => x.g === no);
+                return !(g && g.s1 != null && g.s2 != null);
+              }) ?? null;
             return (
-              <button
-                key={m.id}
-                onClick={() => setDialog(m)}
-                className="w-full border-b border-line py-2.5 text-sm last:border-none"
-              >
-                <div className="flex items-center gap-2">
-                  <span className={`flex-1 text-right ${w1 ? "font-extrabold" : done ? "text-muted" : ""}`}>
-                    {name(m.entry1_id)}
-                  </span>
-                  <b className="tabnum shrink-0 rounded-lg bg-navy px-2.5 py-1 text-xs text-accent">
-                    {done || s.played > 0 ? `${s.gamesWon1} - ${s.gamesWon2}` : "vs"}
-                  </b>
-                  <span className={`flex-1 text-left ${w2 ? "font-extrabold" : done ? "text-muted" : ""}`}>
-                    {name(m.entry2_id)}
-                  </span>
-                </div>
-                {s.played > 0 && (
-                  <div className="tabnum mt-1 text-center text-[10px] text-muted">
-                    {(m.games ?? [])
-                      .filter((g) => g.s1 != null && g.s2 != null)
-                      .map((g) => `${g.s1}-${g.s2}`)
-                      .join(" / ")}
+              <div key={m.id} className="border-b border-line py-2.5 last:border-none">
+                <button
+                  onClick={() => setDialog(m)}
+                  className="w-full text-sm"
+                >
+                  <div className="flex items-center gap-2">
+                    <span className={`flex-1 text-right ${w1 ? "font-extrabold" : done ? "text-muted" : ""}`}>
+                      {name(m.entry1_id)}
+                    </span>
+                    <b className="tabnum shrink-0 rounded-lg bg-navy px-2.5 py-1 text-xs text-accent">
+                      {done || s.played > 0 ? `${s.gamesWon1} - ${s.gamesWon2}` : "vs"}
+                    </b>
+                    <span className={`flex-1 text-left ${w2 ? "font-extrabold" : done ? "text-muted" : ""}`}>
+                      {name(m.entry2_id)}
+                    </span>
                   </div>
+                  {s.played > 0 && (
+                    <div className="tabnum mt-1 text-center text-[10px] text-muted">
+                      {(m.games ?? [])
+                        .filter((g) => g.s1 != null && g.s2 != null)
+                        .map((g) => `${g.s1}-${g.s2}`)
+                        .join(" / ")}
+                    </div>
+                  )}
+                </button>
+                {nextGame && m.entry1_id && m.entry2_id && (
+                  <button
+                    onClick={() =>
+                      router.push(`/scoreboard/play?tie=${m.id}&g=${nextGame}`)
+                    }
+                    className="mt-1.5 w-full rounded-lg border border-primary bg-surface py-1.5 text-[11px] font-extrabold text-primary"
+                  >
+                    🏓 スコアボードで数える(ゲーム{nextGame})
+                  </button>
                 )}
-              </button>
+              </div>
             );
           })}
+          <p className="mt-2 text-[11px] text-muted">
+            対戦をタップすると全ゲームのスコアを手入力できます。
+          </p>
+        </div>
+      )}
+
+      {tab === "teams" && (
+        <div className="space-y-2.5">
+          {entries.map((e, i) => {
+            const st = standings.find((s) => s.entryId === e.id);
+            const players = e.player_names ?? [];
+            return (
+              <div key={e.id} className="card p-4">
+                <div className="mb-2 flex items-center gap-2">
+                  <span className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-[#EDF4F1] text-xs font-extrabold text-primary-dark">
+                    {circle(i)}
+                  </span>
+                  <b className="min-w-0 flex-1 truncate text-[15px]">{e.name}</b>
+                  <span className="shrink-0 text-[11px] font-bold text-muted">
+                    {players.length}人
+                  </span>
+                  {st && (
+                    <span className="tabnum shrink-0 rounded-pill bg-[#EDF1EF] px-2 py-0.5 text-[11px] font-extrabold text-primary-dark">
+                      {st.wins}勝{st.losses}敗
+                    </span>
+                  )}
+                </div>
+                {players.length === 0 ? (
+                  <p className="py-1 text-center text-[11px] text-muted">
+                    メンバー未登録
+                  </p>
+                ) : (
+                  <div className="flex flex-wrap gap-1.5">
+                    {players.map((p) => (
+                      <span
+                        key={p}
+                        className="flex items-center gap-1.5 rounded-pill bg-bg px-2.5 py-1.5 text-xs font-bold"
+                      >
+                        <span className="flex h-5 w-5 items-center justify-center rounded-full bg-[#EDF4F1] text-[10px] font-extrabold text-primary-dark">
+                          {p.trim().charAt(0) || "?"}
+                        </span>
+                        {p}
+                      </span>
+                    ))}
+                  </div>
+                )}
+              </div>
+            );
+          })}
+          <p className="text-center text-[11px] text-muted">
+            チーム名の変更は「順位」タブの「改名」から行えます。
+          </p>
         </div>
       )}
 
@@ -426,6 +497,28 @@ function TieResultDialog({
     }
   };
 
+  /**
+   * スコアボードを開く。入力中の出場ペアを引き継ぐため、
+   * ペアだけ先に保存してから遷移する(スコアは未入力でもOK)。
+   */
+  const openScoreboard = async (gameNo: number) => {
+    setBusy(true);
+    setError(null);
+    try {
+      const pairsOnly: TieGame[] = games.map((g) => ({
+        ...g,
+        // スコアが片方だけ入っている場合は保存が弾かれるため、揃っていない行は null に
+        s1: g.s1 != null && g.s2 != null ? g.s1 : null,
+        s2: g.s1 != null && g.s2 != null ? g.s2 : null,
+      }));
+      await setTieResult(match.id, pairsOnly, member?.id ?? null);
+      router.push(`/scoreboard/play?tie=${match.id}&g=${gameNo}`);
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "保存に失敗しました");
+      setBusy(false);
+    }
+  };
+
   const scoreCls =
     "w-14 rounded-xl border border-line bg-bg px-2 py-2 text-center text-lg font-extrabold outline-none focus:border-primary";
   const pairCls =
@@ -490,6 +583,16 @@ function TieResultDialog({
                 value={g.p2}
                 onToggle={(p) => togglePlayerIn(i, "p2", p)}
               />
+
+              {/* スコアボードで数える(入力中のペアも引き継ぐため先に保存) */}
+              <button
+                type="button"
+                onClick={() => openScoreboard(g.g)}
+                disabled={busy}
+                className="mt-2 w-full rounded-lg border border-primary bg-surface py-2 text-[11px] font-extrabold text-primary disabled:opacity-50"
+              >
+                🏓 スコアボードで数える(ゲーム{g.g})
+              </button>
             </div>
           ))}
         </div>

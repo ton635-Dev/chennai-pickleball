@@ -882,6 +882,108 @@ export async function setTieResult(
   revalidatePath("/tournaments");
 }
 
+/** スコアボード起動用: 対戦1件の情報(チーム名・メンバー・設定)を取得 */
+export async function getTieForScoreboard(matchId: string): Promise<{
+  tournamentId: string;
+  tournamentName: string;
+  gamesPerTie: number;
+  pointsPerGame: number;
+  name1: string;
+  name2: string;
+  players1: string[];
+  players2: string[];
+  games: TieGame[];
+} | null> {
+  const client = sb();
+  const { data: m } = await client
+    .from("tournament_matches")
+    .select("*")
+    .eq("id", matchId)
+    .maybeSingle();
+  if (!m) return null;
+  const match = m as TournamentMatch;
+  const [{ data: t }, { data: es }] = await Promise.all([
+    client
+      .from("tournaments")
+      .select("id, name, games_per_tie, points_per_game")
+      .eq("id", match.tournament_id)
+      .maybeSingle(),
+    client
+      .from("tournament_entries")
+      .select("id, name, player_names")
+      .in(
+        "id",
+        [match.entry1_id, match.entry2_id].filter(Boolean) as string[]
+      ),
+  ]);
+  const list = (es as { id: string; name: string; player_names: string[] }[]) ?? [];
+  const e1 = list.find((e) => e.id === match.entry1_id);
+  const e2 = list.find((e) => e.id === match.entry2_id);
+  return {
+    tournamentId: match.tournament_id,
+    tournamentName: (t?.name as string) ?? "",
+    gamesPerTie: (t?.games_per_tie as number) ?? 3,
+    pointsPerGame: (t?.points_per_game as number) ?? 7,
+    name1: e1?.name ?? "チーム1",
+    name2: e2?.name ?? "チーム2",
+    players1: e1?.player_names ?? [],
+    players2: e2?.player_names ?? [],
+    games: (match.games as TieGame[]) ?? [],
+  };
+}
+
+/**
+ * 大会の対戦のうち1ゲームだけスコアを保存(スコアボードからの記録用)。
+ * 他のゲームは既存の値を維持し、勝敗判定は setTieResult に委譲する。
+ */
+export async function setTieGameScore(
+  matchId: string,
+  gameNo: number,
+  score1: number,
+  score2: number,
+  pair1: string | null,
+  pair2: string | null,
+  memberId: string | null
+) {
+  const client = sb();
+  const { data: m } = await client
+    .from("tournament_matches")
+    .select("games, tournament_id")
+    .eq("id", matchId)
+    .maybeSingle();
+  if (!m) throw new Error("試合が見つかりません");
+  const { data: t } = await client
+    .from("tournaments")
+    .select("games_per_tie")
+    .eq("id", (m as { tournament_id: string }).tournament_id)
+    .maybeSingle();
+  const perTie = (t?.games_per_tie as number) ?? 3;
+  const existing = ((m as { games?: TieGame[] }).games ?? []) as TieGame[];
+
+  const merged: TieGame[] = Array.from({ length: perTie }, (_, i) => {
+    const no = i + 1;
+    const prev = existing.find((g) => g.g === no);
+    if (no === gameNo) {
+      return {
+        g: no,
+        s1: score1,
+        s2: score2,
+        p1: pair1?.trim() || prev?.p1 || null,
+        p2: pair2?.trim() || prev?.p2 || null,
+      };
+    }
+    return {
+      g: no,
+      s1: prev?.s1 ?? null,
+      s2: prev?.s2 ?? null,
+      p1: prev?.p1 ?? null,
+      p2: prev?.p2 ?? null,
+    };
+  });
+
+  await setTieResult(matchId, merged, memberId);
+}
+
 export async function setMatchCourt(matchId: string, court: string, tournamentId: string) {
   const { error } = await sb()
     .from("tournament_matches")
