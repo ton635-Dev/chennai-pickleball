@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import { computeTeamStandings, summarizeTie } from "@/lib/tournament";
 import { setTieResult, renameTournamentEntry } from "@/app/actions";
 import { useMember } from "./MemberProvider";
+import { TeamRosterEditor } from "./TeamRosterEditor";
 import type {
   TieGame,
   Tournament,
@@ -309,52 +310,16 @@ export function TeamLeagueView({ tournament, entries, matches }: Props) {
       )}
 
       {tab === "teams" && (
-        <div className="space-y-2.5">
-          {entries.map((e, i) => {
-            const st = standings.find((s) => s.entryId === e.id);
-            const players = e.player_names ?? [];
-            return (
-              <div key={e.id} className="card p-4">
-                <div className="mb-2 flex items-center gap-2">
-                  <span className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-[#EDF4F1] text-xs font-extrabold text-primary-dark">
-                    {circle(i)}
-                  </span>
-                  <b className="min-w-0 flex-1 truncate text-[15px]">{e.name}</b>
-                  <span className="shrink-0 text-[11px] font-bold text-muted">
-                    {players.length}人
-                  </span>
-                  {st && (
-                    <span className="tabnum shrink-0 rounded-pill bg-[#EDF1EF] px-2 py-0.5 text-[11px] font-extrabold text-primary-dark">
-                      {st.wins}勝{st.losses}敗
-                    </span>
-                  )}
-                </div>
-                {players.length === 0 ? (
-                  <p className="py-1 text-center text-[11px] text-muted">
-                    メンバー未登録
-                  </p>
-                ) : (
-                  <div className="flex flex-wrap gap-1.5">
-                    {players.map((p) => (
-                      <span
-                        key={p}
-                        className="flex items-center gap-1.5 rounded-pill bg-bg px-2.5 py-1.5 text-xs font-bold"
-                      >
-                        <span className="flex h-5 w-5 items-center justify-center rounded-full bg-[#EDF4F1] text-[10px] font-extrabold text-primary-dark">
-                          {p.trim().charAt(0) || "?"}
-                        </span>
-                        {p}
-                      </span>
-                    ))}
-                  </div>
-                )}
-              </div>
-            );
-          })}
-          <p className="text-center text-[11px] text-muted">
-            チーム名の変更は「順位」タブの「改名」から行えます。
-          </p>
-        </div>
+        <TeamRosterEditor
+          tournamentId={tournament.id}
+          entries={entries}
+          sizeMin={tournament.team_size_min ?? 3}
+          sizeMax={tournament.team_size_max ?? 4}
+          recordOf={(id) => {
+            const st = standings.find((s) => s.entryId === id);
+            return st ? `${st.wins}勝${st.losses}敗` : null;
+          }}
+        />
       )}
 
       {dialog && (

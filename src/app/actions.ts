@@ -552,6 +552,60 @@ export async function addTournamentEntries(
   revalidatePath(`/tournaments/${tournamentId}`);
 }
 
+/**
+ * 団体戦: チームのメンバー構成をまとめて更新(入れ替え用)。
+ * 1人の移動でも「移動元」「移動先」2チーム分を同時に保存するため配列で受ける。
+ * 各チームの人数は大会設定の下限〜上限に収まっていること。
+ */
+export async function updateTeamRosters(
+  tournamentId: string,
+  rosters: { entryId: string; players: string[] }[]
+) {
+  const client = sb();
+  const { min, max } = await teamSizeRange(tournamentId);
+
+  const cleaned = rosters.map((r) => {
+    const players = r.players.map((p) => p.trim()).filter(Boolean);
+    return { entryId: r.entryId, players };
+  });
+
+  // 同一メンバーが複数チームに入っていないか
+  const seen = new Set<string>();
+  for (const r of cleaned) {
+    for (const p of r.players) {
+      if (seen.has(p)) throw new Error(`「${p}」が複数のチームに入っています`);
+      seen.add(p);
+    }
+  }
+
+  // 人数チェック(名前は後で引き当てるため先に取得)
+  const { data: es } = await client
+    .from("tournament_entries")
+    .select("id, name")
+    .eq("tournament_id", tournamentId);
+  const nameOf = new Map(
+    ((es as { id: string; name: string }[]) ?? []).map((e) => [e.id, e.name])
+  );
+  for (const r of cleaned) {
+    if (r.players.length < min || r.players.length > max)
+      throw new Error(
+        `「${nameOf.get(r.entryId) ?? "チーム"}」のメンバーは${
+          min === max ? `${min}人` : `${min}〜${max}人`
+        }にしてください(現在${r.players.length}人)`
+      );
+  }
+
+  for (const r of cleaned) {
+    const { error } = await client
+      .from("tournament_entries")
+      .update({ player_names: r.players })
+      .eq("id", r.entryId);
+    if (error) throw new Error(error.message);
+  }
+
+  revalidatePath(`/tournaments/${tournamentId}`);
+}
+
 /** エントリー名(チーム名/ペア名/選手名)を変更 */
 export async function renameTournamentEntry(
   entryId: string,
