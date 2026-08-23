@@ -42,10 +42,22 @@ export default async function EventDetailPage({
   const appUrl = getAppUrl();
   const statusByMember: Record<string, AttendanceStatus> = {};
   const commentByMember: Record<string, string> = {};
+  const extrasByMember: Record<string, { adults: number; children: number }> = {};
   for (const a of ev.attendances) {
     statusByMember[a.member_id] = a.status;
     if (a.comment) commentByMember[a.member_id] = a.comment;
+    extrasByMember[a.member_id] = {
+      adults: a.extra_adults ?? 0,
+      children: a.extra_children ?? 0,
+    };
   }
+
+  // 同伴者の集計(「参加」の人の分だけ)
+  const joins = ev.attendances.filter((a) => a.status === "join");
+  const extraAdults = joins.reduce((s, a) => s + (a.extra_adults ?? 0), 0);
+  const extraChildren = joins.reduce((s, a) => s + (a.extra_children ?? 0), 0);
+  // 割り勘は大人の総数(参加メンバー + 同伴大人)。子供は含めない
+  const adultTotal = ev.counts.join + extraAdults;
 
   return (
     <div className="mx-auto w-full max-w-2xl pt-1">
@@ -102,14 +114,20 @@ export default async function EventDetailPage({
               <span>
                 コート使用費 <b>₹{ev.court_fee.toLocaleString()}</b>
                 {(() => {
-                  const n = ev.fee_split_count ?? ev.counts.join;
+                  // 割り勘人数: 手動指定 > 大人の総数(参加メンバー+同伴大人)
+                  const n = ev.fee_split_count ?? adultTotal;
                   if (n > 0) {
                     const per = Math.ceil(ev.court_fee! / n);
                     return (
                       <>
                         {" "}
-                        ・{n}人割り →{" "}
+                        ・大人{n}人割り →{" "}
                         <b className="text-primary-dark">一人 ₹{per.toLocaleString()}</b>
+                        {extraChildren > 0 && (
+                          <small className="text-muted">
+                            (子供{extraChildren}人は含まず)
+                          </small>
+                        )}
                       </>
                     );
                   }
@@ -152,6 +170,7 @@ export default async function EventDetailPage({
           eventId={ev.id}
           statusByMember={statusByMember}
           commentByMember={commentByMember}
+          extrasByMember={extrasByMember}
         />
       </div>
 
@@ -185,21 +204,42 @@ export default async function EventDetailPage({
                 >
                   <span className={`h-2.5 w-2.5 rounded-full ${g.dot}`} />
                   {g.label} {list.length}名
+                  {g.key === "join" && (extraAdults > 0 || extraChildren > 0) && (
+                    <span className="font-bold text-muted">
+                      +同伴 {extraAdults > 0 && `大人${extraAdults}`}
+                      {extraAdults > 0 && extraChildren > 0 && "・"}
+                      {extraChildren > 0 && `子供${extraChildren}`}
+                      (計{list.length + extraAdults + extraChildren}名)
+                    </span>
+                  )}
                 </div>
-                {list.map((a) => (
-                  <div
-                    key={a.id}
-                    className="flex items-center gap-2.5 border-b border-line py-2 text-sm last:border-none"
-                  >
-                    <Avatar name={a.member.name} className="h-8 w-8 text-xs" />
-                    {a.member.name}
-                    {a.comment && (
-                      <small className="ml-auto max-w-[55%] text-right text-xs text-muted">
-                        {a.comment}
-                      </small>
-                    )}
-                  </div>
-                ))}
+                {list.map((a) => {
+                  const ea = a.extra_adults ?? 0;
+                  const ec = a.extra_children ?? 0;
+                  return (
+                    <div
+                      key={a.id}
+                      className="flex items-center gap-2.5 border-b border-line py-2 text-sm last:border-none"
+                    >
+                      <Avatar name={a.member.name} className="h-8 w-8 text-xs" />
+                      <span className="min-w-0">
+                        {a.member.name}
+                        {(ea > 0 || ec > 0) && (
+                          <span className="ml-1.5 rounded-pill bg-[#EDF4F1] px-2 py-0.5 text-[10px] font-extrabold text-primary-dark">
+                            +{ea > 0 && `大人${ea}`}
+                            {ea > 0 && ec > 0 && "・"}
+                            {ec > 0 && `子供${ec}`}
+                          </span>
+                        )}
+                      </span>
+                      {a.comment && (
+                        <small className="ml-auto max-w-[45%] text-right text-xs text-muted">
+                          {a.comment}
+                        </small>
+                      )}
+                    </div>
+                  );
+                })}
               </div>
             );
           })

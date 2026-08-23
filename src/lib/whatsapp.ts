@@ -64,13 +64,36 @@ export function buildRosterText(
 
   for (const status of STATUS_ORDER) {
     const list = ev.attendances.filter((a) => a.status === status);
-    lines.push(`${STATUS_HEAD[status]} (${list.length}名)`);
+    // 参加は同伴者(大人/子供)も集計して表示
+    let head = `${STATUS_HEAD[status]} (${list.length}名)`;
+    if (status === "join") {
+      const ea = list.reduce((s, a) => s + (a.extra_adults ?? 0), 0);
+      const ec = list.reduce((s, a) => s + (a.extra_children ?? 0), 0);
+      if (ea > 0 || ec > 0) {
+        const parts = [
+          ea > 0 ? `大人${ea}` : "",
+          ec > 0 ? `子供${ec}` : "",
+        ].filter(Boolean);
+        head = `${STATUS_HEAD[status]} (${list.length}名 +同伴${parts.join("・")} = 計${
+          list.length + ea + ec
+        }名)`;
+      }
+    }
+    lines.push(head);
     if (list.length === 0) {
       lines.push("  なし");
     } else {
       for (const a of list) {
+        const ea = a.extra_adults ?? 0;
+        const ec = a.extra_children ?? 0;
+        const extra =
+          ea > 0 || ec > 0
+            ? ` +${[ea > 0 ? `大人${ea}` : "", ec > 0 ? `子供${ec}` : ""]
+                .filter(Boolean)
+                .join("・")}`
+            : "";
         const cmt = a.comment ? ` (${a.comment})` : "";
-        lines.push(`  - ${a.member.name}${cmt}`);
+        lines.push(`  - ${a.member.name}${extra}${cmt}`);
       }
     }
     lines.push("");

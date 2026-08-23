@@ -36,7 +36,8 @@ export function RsvpControl({ eventId, statusByMember, variant = "detail" }: Pro
     setSaving(status);
     startTransition(async () => {
       try {
-        await setAttendance(eventId, member.id, status, null);
+        // コメント・同伴者は指定しない = 既存の値を保持
+        await setAttendance(eventId, member.id, status);
         router.refresh();
       } catch {
         setCurrent(prev); // 失敗したら戻す

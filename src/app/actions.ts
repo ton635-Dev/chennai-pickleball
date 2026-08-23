@@ -242,20 +242,27 @@ export async function setAttendance(
   eventId: string,
   memberId: string,
   status: AttendanceStatus,
-  comment: string | null
+  /** undefined = 既存コメントを保持 / null = クリア */
+  comment?: string | null,
+  /** 同伴者(大人/子供)。undefined = 既存値を保持 */
+  extras?: { adults: number; children: number }
 ) {
+  // upsert は「渡したカラムだけ」更新されるため、
+  // undefined の項目はオブジェクトに含めず既存値を保持する
+  const row: Record<string, unknown> = {
+    event_id: eventId,
+    member_id: memberId,
+    status,
+    updated_at: new Date().toISOString(),
+  };
+  if (comment !== undefined) row.comment = comment || null;
+  if (extras !== undefined) {
+    row.extra_adults = Math.max(0, Math.min(20, Math.floor(extras.adults)));
+    row.extra_children = Math.max(0, Math.min(20, Math.floor(extras.children)));
+  }
   const { error } = await sb()
     .from("attendances")
-    .upsert(
-      {
-        event_id: eventId,
-        member_id: memberId,
-        status,
-        comment: comment || null,
-        updated_at: new Date().toISOString(),
-      },
-      { onConflict: "event_id,member_id" }
-    );
+    .upsert(row, { onConflict: "event_id,member_id" });
   if (error) throw new Error(error.message);
   await log("attendance", eventId, memberId, "rsvp", `出欠を「${status}」に更新`);
   revalidatePath("/");

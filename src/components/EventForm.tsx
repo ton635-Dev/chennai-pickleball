@@ -216,14 +216,14 @@ export function EventForm({ event, courts = [], members = [] }: Props) {
               onChange={(e) =>
                 setSplitCount(e.target.value.replace(/[^0-9]/g, "").slice(0, 3))
               }
-              placeholder="空欄=参加人数"
+              placeholder="空欄=大人の人数"
               className={field}
             />
           </div>
         </div>
         {courtFee && (
           <p className="-mt-2 text-[11px] text-muted">
-            一人あたりの金額は活動詳細に自動表示されます(割り勘人数が空欄なら「参加」の人数で計算)。
+            一人あたりの金額は活動詳細に自動表示されます(割り勘人数が空欄なら「参加メンバー+同伴の大人」で計算。子供は含めません)。
           </p>
         )}
 
