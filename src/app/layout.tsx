@@ -10,12 +10,18 @@ import {
   APP_SHORT_NAME,
   APP_DESCRIPTION,
   BEACON_APP_ID,
+  ICON_SUFFIX,
 } from "@/lib/branding";
 
 export const metadata: Metadata = {
   title: APP_NAME,
   description: APP_DESCRIPTION,
   manifest: "/manifest.webmanifest",
+  // アイコンはデプロイごとに色を切り替えるため、ファイル規約ではなく public + metadata で指定
+  icons: {
+    icon: [{ url: `/icon${ICON_SUFFIX}.png`, type: "image/png" }],
+    apple: [{ url: `/apple-icon${ICON_SUFFIX}.png`, type: "image/png" }],
+  },
   appleWebApp: {
     capable: true,
     statusBarStyle: "default",

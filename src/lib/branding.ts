@@ -16,3 +16,11 @@ export const BEACON_APP_ID =
 
 /** Googleカレンダー登録に使うタイムゾーン(端末設定に依存させない) */
 export const CALENDAR_TZ = process.env.NEXT_PUBLIC_CALENDAR_TZ || "Asia/Kolkata";
+
+/**
+ * アプリアイコンのテーマ。"pink" を指定するとピンク背景のアイコン一式
+ * (icon-*-pink.png)を使う。ホーム画面で見分けるためのもので、既定は緑。
+ * 新しい色を増やすときは scripts/gen-pink-icons.cjs を参考に生成する。
+ */
+export const ICON_SUFFIX =
+  process.env.NEXT_PUBLIC_ICON_THEME === "pink" ? "-pink" : "";
