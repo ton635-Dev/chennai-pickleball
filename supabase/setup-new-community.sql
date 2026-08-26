@@ -1,6 +1,7 @@
 -- ============================================================
 -- 新しいコミュニティ用セットアップSQL(既存Supabaseプロジェクトに同居・別スキーマ方式)
 -- chennai-pickleball の Supabase プロジェクトの SQL Editor でこのファイルを丸ごと実行する。
+-- 何度実行してもエラーにならない(冪等)。
 -- スキーマ名を変えたい場合は、実行前に community2 を一括置換すること。
 --
 -- 実行後に必要な手動設定(ダッシュボード):
@@ -107,9 +108,15 @@ create index if not exists audit_logs_entity_idx on audit_logs (entity_type, ent
 -- ---------------------------------------------------------------------
 -- Realtime 配信対象(出欠・試合のライブ更新)
 -- ---------------------------------------------------------------------
-alter publication supabase_realtime add table attendances;
-alter publication supabase_realtime add table events;
-alter publication supabase_realtime add table matches;
+do $$ begin
+  alter publication supabase_realtime add table attendances;
+exception when duplicate_object then null; end $$;
+do $$ begin
+  alter publication supabase_realtime add table events;
+exception when duplicate_object then null; end $$;
+do $$ begin
+  alter publication supabase_realtime add table matches;
+exception when duplicate_object then null; end $$;
 
 -- ---------------------------------------------------------------------
 -- RLS: 認証なし運用のため anon ロールに全操作を許可
@@ -249,6 +256,7 @@ on conflict (id) do nothing;
 
 drop policy if exists "court_photos_read" on storage.objects;
 drop policy if exists "court_photos_write" on storage.objects;
+drop policy if exists "court_photos_delete" on storage.objects;
 create policy "court_photos_read" on storage.objects
   for select to anon, authenticated using (bucket_id = 'court-photos');
 create policy "court_photos_write" on storage.objects
@@ -257,7 +265,9 @@ create policy "court_photos_delete" on storage.objects
   for delete to anon, authenticated using (bucket_id = 'court-photos');
 
 -- Realtime(コート評価のライブ更新は任意)
-alter publication supabase_realtime add table court_reviews;
+do $$ begin
+  alter publication supabase_realtime add table court_reviews;
+exception when duplicate_object then null; end $$;
 
 
 -- ============ phase3-tournaments.sql ============
@@ -348,8 +358,12 @@ begin
 end $$;
 
 -- Realtime(観戦ビューのライブ更新用)
-alter publication supabase_realtime add table tournament_matches;
-alter publication supabase_realtime add table tournaments;
+do $$ begin
+  alter publication supabase_realtime add table tournament_matches;
+exception when duplicate_object then null; end $$;
+do $$ begin
+  alter publication supabase_realtime add table tournaments;
+exception when duplicate_object then null; end $$;
 
 
 -- ============ phase4-payments.sql ============

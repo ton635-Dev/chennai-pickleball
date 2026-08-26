@@ -113,6 +113,7 @@ on conflict (id) do nothing;
 
 drop policy if exists "court_photos_read" on storage.objects;
 drop policy if exists "court_photos_write" on storage.objects;
+drop policy if exists "court_photos_delete" on storage.objects;
 create policy "court_photos_read" on storage.objects
   for select to anon, authenticated using (bucket_id = 'court-photos');
 create policy "court_photos_write" on storage.objects
