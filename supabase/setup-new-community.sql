@@ -1,8 +1,14 @@
 -- ============================================================
--- 新しいコミュニティ用セットアップSQL(全マイグレーション一括)
--- 新規Supabaseプロジェクトの SQL Editor でこのファイルを丸ごと実行する。
--- 既存の schema.sql + phase2〜8 を順に連結したもの(生成元を変更したら作り直す)。
+-- 新しいコミュニティ用セットアップSQL(既存Supabaseプロジェクトに同居・別スキーマ方式)
+-- chennai-pickleball の Supabase プロジェクトの SQL Editor でこのファイルを丸ごと実行する。
+-- スキーマ名を変えたい場合は、実行前に community2 を一括置換すること。
+--
+-- 実行後に必要な手動設定(ダッシュボード):
+--   Settings → API → "Exposed schemas" に community2 を追加
 -- ============================================================
+
+create schema if not exists community2;
+set search_path to community2, public;
 
 
 -- ============ schema.sql ============
@@ -454,3 +460,10 @@ create index if not exists matches_tournament_idx on matches (tournament_id);
 alter table attendances add column if not exists extra_adults int not null default 0;
 alter table attendances add column if not exists extra_children int not null default 0;
 
+
+-- ============ スキーマの権限付与(PostgRESTからアクセスできるようにする) ============
+grant usage on schema community2 to anon, authenticated, service_role;
+grant all on all tables in schema community2 to anon, authenticated, service_role;
+grant all on all sequences in schema community2 to anon, authenticated, service_role;
+alter default privileges in schema community2 grant all on tables to anon, authenticated, service_role;
+alter default privileges in schema community2 grant all on sequences to anon, authenticated, service_role;

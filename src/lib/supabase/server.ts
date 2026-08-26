@@ -1,5 +1,10 @@
 import { createClient, type SupabaseClient } from "@supabase/supabase-js";
-import { SUPABASE_ANON_KEY, SUPABASE_URL, isSupabaseConfigured } from "./config";
+import {
+  SUPABASE_ANON_KEY,
+  SUPABASE_URL,
+  SUPABASE_SCHEMA,
+  isSupabaseConfigured,
+} from "./config";
 
 /**
  * サーバー(Server Components / Server Actions)用の Supabase クライアント。
@@ -8,7 +13,9 @@ import { SUPABASE_ANON_KEY, SUPABASE_URL, isSupabaseConfigured } from "./config"
  */
 export function getServerSupabase(): SupabaseClient | null {
   if (!isSupabaseConfigured) return null;
+  // スキーマ名が動的(string)だとジェネリクスが合わないためキャストする
   return createClient(SUPABASE_URL, SUPABASE_ANON_KEY, {
     auth: { persistSession: false },
-  });
+    db: { schema: SUPABASE_SCHEMA },
+  }) as unknown as SupabaseClient;
 }
