@@ -1,10 +1,11 @@
 import type { MetadataRoute } from "next";
+import { APP_NAME, APP_SHORT_NAME, APP_DESCRIPTION } from "@/lib/branding";
 
 export default function manifest(): MetadataRoute.Manifest {
   return {
-    name: "Chennai Pickleball",
-    short_name: "Pickleball",
-    description: "チェンナイ ピックルボールサークルの活動管理アプリ",
+    name: APP_NAME,
+    short_name: APP_SHORT_NAME,
+    description: APP_DESCRIPTION,
     start_url: "/",
     display: "standalone",
     orientation: "portrait",

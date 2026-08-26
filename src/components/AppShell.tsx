@@ -5,6 +5,7 @@ import { usePathname } from "next/navigation";
 import { NAV_ITEMS } from "./nav-items";
 import { MeChip } from "./MeChip";
 import { PickleballIcon } from "./PickleballIcon";
+import { APP_NAME } from "@/lib/branding";
 
 function isActive(pathname: string, href: string): boolean {
   if (href === "/") return pathname === "/";
@@ -26,7 +27,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
           <span className="flex h-8 w-8 items-center justify-center rounded-[10px] bg-primary text-accent">
             <PickleballIcon className="h-5 w-5" />
           </span>
-          Chennai Pickleball
+          {APP_NAME}
         </Link>
         {NAV_ITEMS.map((item) => (
           <Link
@@ -52,7 +53,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
           <span className="flex h-[30px] w-[30px] items-center justify-center rounded-[9px] bg-primary text-accent">
             <PickleballIcon className="h-[18px] w-[18px]" />
           </span>
-          Chennai Pickleball
+          {APP_NAME}
         </Link>
         <MeChip />
       </header>

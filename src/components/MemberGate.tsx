@@ -6,6 +6,7 @@ import { useMember } from "./MemberProvider";
 import { createMember, listMembers, findMembersByName } from "@/app/actions";
 import { initial } from "@/lib/format";
 import { PickleballIcon } from "./PickleballIcon";
+import { APP_NAME } from "@/lib/branding";
 
 /**
  * メンバー未登録の端末に表示するゲート。
@@ -60,7 +61,7 @@ export function MemberGate() {
           <span className="flex h-8 w-8 items-center justify-center rounded-[9px] bg-primary text-accent">
             <PickleballIcon className="h-5 w-5" />
           </span>
-          Chennai Pickleball
+          {APP_NAME}
         </div>
         <p className="mb-5 text-sm text-muted">
           まずはあなたの表示名を登録してください。ログインは不要です。

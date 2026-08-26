@@ -5,15 +5,21 @@ import { MemberGate } from "@/components/MemberGate";
 import { AppShell } from "@/components/AppShell";
 import { ServiceWorkerRegister } from "@/components/ServiceWorkerRegister";
 import { isSupabaseConfigured } from "@/lib/supabase/config";
+import {
+  APP_NAME,
+  APP_SHORT_NAME,
+  APP_DESCRIPTION,
+  BEACON_APP_ID,
+} from "@/lib/branding";
 
 export const metadata: Metadata = {
-  title: "Chennai Pickleball",
-  description: "チェンナイ ピックルボールサークルの活動管理アプリ",
+  title: APP_NAME,
+  description: APP_DESCRIPTION,
   manifest: "/manifest.webmanifest",
   appleWebApp: {
     capable: true,
     statusBarStyle: "default",
-    title: "Pickleball",
+    title: APP_SHORT_NAME,
   },
 };
 
@@ -36,7 +42,7 @@ export default function RootLayout({
         <script
           defer
           src="https://app-hub-6rf.pages.dev/beacon.js"
-          data-app="chennai-pickleball"
+          data-app={BEACON_APP_ID}
         />
       </head>
       <body>

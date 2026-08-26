@@ -1,8 +1,9 @@
 import type { EventRow } from "./types";
 import { eventUrl } from "./whatsapp";
+import { CALENDAR_TZ } from "./branding";
 
-// チェンナイのタイムゾーン。端末の設定に関わらず正しい時刻で登録される
-const TZ = "Asia/Kolkata";
+// コミュニティのタイムゾーン(既定はチェンナイ)。端末の設定に関わらず正しい時刻で登録される
+const TZ = CALENDAR_TZ;
 
 const pad = (n: number) => String(n).padStart(2, "0");
 
