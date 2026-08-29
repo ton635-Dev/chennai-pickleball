@@ -481,6 +481,12 @@ alter table members
     check (dupr >= 2 and dupr <= 8);
 
 
+-- ============ phase10-dupr-link.sql ============
+alter table members add column if not exists dupr_player_id bigint;
+alter table members add column if not exists dupr_dupr_id text;
+alter table members add column if not exists dupr_updated_at timestamptz;
+
+
 -- ============ スキーマの権限付与(PostgRESTからアクセスできるようにする) ============
 grant usage on schema community2 to anon, authenticated, service_role;
 grant all on all tables in schema community2 to anon, authenticated, service_role;

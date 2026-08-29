@@ -9,7 +9,12 @@ import {
   updateMemberDupr,
   deleteMember,
   findMembersByName,
+  searchDupr,
+  linkMemberDupr,
+  unlinkMemberDupr,
+  refreshDuprRatings,
 } from "@/app/actions";
+import type { DuprPlayer } from "@/lib/dupr";
 import { Avatar } from "./bits";
 import { PickleballIcon } from "./PickleballIcon";
 import { UpiQrManager } from "./UpiQrManager";
@@ -39,7 +44,13 @@ const MENU: { href: string; icon: ReactNode; label: string; desc: string }[] = [
   { href: "/rules", icon: "📘", label: "ルールを学ぶ", desc: "7章の学習・早見表" },
 ];
 
-export function MoreView({ stats }: { stats: MemberStat[] }) {
+export function MoreView({
+  stats,
+  duprEnabled,
+}: {
+  stats: MemberStat[];
+  duprEnabled: boolean;
+}) {
   const { member, setMember, signOut } = useMember();
   const router = useRouter();
 
@@ -56,6 +67,14 @@ export function MoreView({ stats }: { stats: MemberStat[] }) {
   const [duprBusy, setDuprBusy] = useState(false);
   const [duprSaved, setDuprSaved] = useState(false);
   const [duprError, setDuprError] = useState(false);
+
+  // DUPR連携(検索してひも付け)
+  const [duprQuery, setDuprQuery] = useState(member?.name ?? "");
+  const [duprSearching, setDuprSearching] = useState(false);
+  const [duprCandidates, setDuprCandidates] = useState<DuprPlayer[] | null>(null);
+  const [duprLinkMsg, setDuprLinkMsg] = useState<string | null>(null);
+  const [refreshBusy, setRefreshBusy] = useState(false);
+  const [refreshMsg, setRefreshMsg] = useState<string | null>(null);
 
   // メンバー一覧の編集・削除
   const [editingId, setEditingId] = useState<string | null>(null);
@@ -83,6 +102,69 @@ export function MoreView({ stats }: { stats: MemberStat[] }) {
       router.refresh();
     } finally {
       setBusy(false);
+    }
+  };
+
+  const doDuprSearch = async () => {
+    if (!duprQuery.trim()) return;
+    setDuprSearching(true);
+    setDuprLinkMsg(null);
+    try {
+      const hits = await searchDupr(duprQuery);
+      setDuprCandidates(hits);
+      if (hits.length === 0) {
+        setDuprLinkMsg(
+          "見つかりませんでした。DUPRアプリの表示名(英字)やDUPR IDで試してください"
+        );
+      }
+    } catch (e) {
+      setDuprLinkMsg(e instanceof Error ? e.message : "検索に失敗しました");
+    } finally {
+      setDuprSearching(false);
+    }
+  };
+
+  const doLink = async (p: DuprPlayer) => {
+    if (!member) return;
+    setDuprSearching(true);
+    try {
+      await linkMemberDupr(member.id, p.id, p.duprId, p.doubles, member.id);
+      setDuprCandidates(null);
+      setDuprLinkMsg(null);
+      router.refresh();
+    } catch (e) {
+      setDuprLinkMsg(e instanceof Error ? e.message : "連携に失敗しました");
+    } finally {
+      setDuprSearching(false);
+    }
+  };
+
+  const doUnlink = async () => {
+    if (!member) return;
+    setDuprSearching(true);
+    try {
+      await unlinkMemberDupr(member.id, member.id);
+      router.refresh();
+    } finally {
+      setDuprSearching(false);
+    }
+  };
+
+  const doRefreshAll = async () => {
+    setRefreshBusy(true);
+    setRefreshMsg(null);
+    try {
+      const res = await refreshDuprRatings(member?.id ?? null);
+      setRefreshMsg(
+        res.total === 0
+          ? "連携済みのメンバーがいません"
+          : `更新しました(対象${res.total}名・変動${res.updated}名)`
+      );
+      router.refresh();
+    } catch (e) {
+      setRefreshMsg(e instanceof Error ? e.message : "更新に失敗しました");
+    } finally {
+      setRefreshBusy(false);
     }
   };
 
@@ -204,35 +286,123 @@ export function MoreView({ stats }: { stats: MemberStat[] }) {
               </button>
             </div>
             <div className="mt-3 border-t border-line pt-3">
-              <label className="mb-1.5 block text-xs font-extrabold text-muted">
-                DUPRレーティング(任意・2.0〜8.0)
-              </label>
-              <div className="flex gap-2">
-                <input
-                  value={duprInput}
-                  onChange={(e) => setDuprInput(e.target.value)}
-                  type="number"
-                  inputMode="decimal"
-                  step="0.01"
-                  min={2}
-                  max={8}
-                  placeholder="例: 3.5"
-                  className={`w-28 rounded-xl border bg-bg px-3.5 py-2.5 text-[15px] outline-none focus:border-primary ${
-                    duprError ? "border-red-400" : "border-line"
-                  }`}
-                />
-                <button
-                  onClick={saveSelfDupr}
-                  disabled={duprBusy}
-                  className="btn-pill bg-primary px-5 text-sm text-white disabled:opacity-50"
-                >
-                  {duprSaved ? "保存済" : "保存"}
-                </button>
-              </div>
-              {duprError && (
-                <p className="mt-1 text-xs text-red-600">
-                  2.0〜8.0の数値で入力してください(空欄で保存すると未設定に戻ります)
-                </p>
+              {duprEnabled && myStat?.duprPlayerId != null ? (
+                /* DUPR連携済み: 自動更新の状態表示のみ */
+                <div>
+                  <label className="mb-1.5 block text-xs font-extrabold text-muted">
+                    DUPR連携済み(毎週自動更新)
+                  </label>
+                  <div className="flex items-center gap-2">
+                    <span className="rounded-pill bg-[#E2F3EE] px-3 py-1.5 text-sm font-extrabold text-primary-dark">
+                      {myStat.dupr != null ? formatDupr(myStat.dupr) : "未評価"}
+                    </span>
+                    {myStat.duprId && (
+                      <span className="text-xs text-muted">ID: {myStat.duprId}</span>
+                    )}
+                    <button
+                      onClick={doUnlink}
+                      disabled={duprSearching}
+                      className="ml-auto text-xs font-bold text-muted underline disabled:opacity-50"
+                    >
+                      連携を解除
+                    </button>
+                  </div>
+                  {myStat.duprUpdatedAt && (
+                    <p className="mt-1 text-[11px] text-muted">
+                      最終更新: {new Date(myStat.duprUpdatedAt).toLocaleDateString("ja-JP")}
+                    </p>
+                  )}
+                </div>
+              ) : (
+                <>
+                  {duprEnabled && (
+                    /* 未連携: DUPRプロフィール検索 */
+                    <div className="mb-3">
+                      <label className="mb-1.5 block text-xs font-extrabold text-muted">
+                        DUPR連携(検索して自分を選ぶと、以降は自動更新)
+                      </label>
+                      <div className="flex gap-2">
+                        <input
+                          value={duprQuery}
+                          onChange={(e) => setDuprQuery(e.target.value)}
+                          onKeyDown={(e) => e.key === "Enter" && doDuprSearch()}
+                          placeholder="DUPRの表示名 or DUPR ID"
+                          className="min-w-0 flex-1 rounded-xl border border-line bg-bg px-3.5 py-2.5 text-[15px] outline-none focus:border-primary"
+                        />
+                        <button
+                          onClick={doDuprSearch}
+                          disabled={duprSearching || !duprQuery.trim()}
+                          className="btn-pill bg-primary px-4 text-sm text-white disabled:opacity-50"
+                        >
+                          {duprSearching ? "…" : "検索"}
+                        </button>
+                      </div>
+                      {duprLinkMsg && (
+                        <p className="mt-1.5 text-xs text-red-600">{duprLinkMsg}</p>
+                      )}
+                      {duprCandidates && duprCandidates.length > 0 && (
+                        <div className="mt-2 space-y-1.5">
+                          {duprCandidates.map((p) => (
+                            <button
+                              key={p.id}
+                              onClick={() => doLink(p)}
+                              disabled={duprSearching}
+                              className="flex w-full items-center gap-2.5 rounded-xl border border-line bg-bg px-3 py-2.5 text-left hover:border-primary disabled:opacity-50"
+                            >
+                              <Avatar name={p.fullName} className="h-8 w-8 shrink-0 text-xs" />
+                              <span className="min-w-0 flex-1">
+                                <b className="block truncate text-sm">{p.fullName}</b>
+                                <span className="block truncate text-[11px] text-muted">
+                                  {[p.shortAddress, p.age ? `${p.age}歳` : null, p.duprId ? `ID: ${p.duprId}` : null]
+                                    .filter(Boolean)
+                                    .join("・")}
+                                </span>
+                              </span>
+                              <span className="shrink-0 text-sm font-extrabold text-primary-dark">
+                                {p.doubles != null ? formatDupr(p.doubles) : "NR"}
+                              </span>
+                            </button>
+                          ))}
+                          <p className="text-[11px] text-muted">
+                            タップすると自分のプロフィールとしてひも付けます
+                          </p>
+                        </div>
+                      )}
+                    </div>
+                  )}
+                  <label className="mb-1.5 block text-xs font-extrabold text-muted">
+                    {duprEnabled
+                      ? "手入力(連携しない場合・2.0〜8.0)"
+                      : "DUPRレーティング(任意・2.0〜8.0)"}
+                  </label>
+                  <div className="flex gap-2">
+                    <input
+                      value={duprInput}
+                      onChange={(e) => setDuprInput(e.target.value)}
+                      type="number"
+                      inputMode="decimal"
+                      step="0.01"
+                      min={2}
+                      max={8}
+                      placeholder="例: 3.5"
+                      className={`w-28 rounded-xl border bg-bg px-3.5 py-2.5 text-[15px] outline-none focus:border-primary ${
+                        duprError ? "border-red-400" : "border-line"
+                      }`}
+                    />
+                    <button
+                      onClick={saveSelfDupr}
+                      disabled={duprBusy}
+                      className="btn-pill bg-primary px-5 text-sm text-white disabled:opacity-50"
+                    >
+                      {duprSaved ? "保存済" : "保存"}
+                    </button>
+                  </div>
+                  {duprError && (
+                    <p className="mt-1 text-xs text-red-600">
+                      2.0〜8.0の数値で入力してください(空欄で保存すると未設定に戻ります)
+                    </p>
+                  )}
+                </>
               )}
             </div>
             <button
@@ -252,9 +422,21 @@ export function MoreView({ stats }: { stats: MemberStat[] }) {
 
       {/* メンバー一覧(編集・削除) */}
       <div className="card p-4">
-        <h2 className="mb-2.5 text-sm font-extrabold text-muted">
-          メンバー一覧(参加回数・DUPR)
-        </h2>
+        <div className="mb-2.5 flex items-center justify-between">
+          <h2 className="text-sm font-extrabold text-muted">
+            メンバー一覧(参加回数・DUPR)
+          </h2>
+          {duprEnabled && (
+            <button
+              onClick={doRefreshAll}
+              disabled={refreshBusy}
+              className="rounded-lg border border-line px-2.5 py-1.5 text-xs font-bold text-primary-dark disabled:opacity-50"
+            >
+              {refreshBusy ? "更新中…" : "⟳ DUPR一括更新"}
+            </button>
+          )}
+        </div>
+        {refreshMsg && <p className="mb-2 text-xs text-muted">{refreshMsg}</p>}
         {rowError && (
           <p className="mb-2 text-sm text-red-600">{rowError}</p>
         )}
@@ -317,7 +499,14 @@ export function MoreView({ stats }: { stats: MemberStat[] }) {
                       </span>
                     )}
                     {m.dupr != null && (
-                      <span className="shrink-0 rounded-pill border border-line bg-bg px-2 py-0.5 text-[10px] font-extrabold text-muted">
+                      <span
+                        className={`shrink-0 rounded-pill px-2 py-0.5 text-[10px] font-extrabold ${
+                          m.duprPlayerId != null
+                            ? "bg-[#E2F3EE] text-primary-dark"
+                            : "border border-line bg-bg text-muted"
+                        }`}
+                        title={m.duprPlayerId != null ? "DUPR連携済み(自動更新)" : "手入力"}
+                      >
                         DUPR {formatDupr(m.dupr)}
                       </span>
                     )}

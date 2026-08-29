@@ -113,6 +113,20 @@ export interface MemberStat {
   name: string;
   joinCount: number;
   dupr: number | null;
+  /** DUPR連携済みなら内部プレイヤーID(自動更新対象) */
+  duprPlayerId: number | null;
+  /** DUPR ID(共有コード・表示用) */
+  duprId: string | null;
+  duprUpdatedAt: string | null;
+}
+
+interface MemberRow {
+  id: string;
+  name: string;
+  dupr: number | null;
+  dupr_player_id: number | null;
+  dupr_dupr_id: string | null;
+  dupr_updated_at: string | null;
 }
 
 /** メンバーごとの参加回数(status='join')集計 */
@@ -120,19 +134,22 @@ export async function getMemberStats(): Promise<MemberStat[]> {
   const sb = getServerSupabase();
   if (!sb) return [];
   const [{ data: members }, { data: atts }] = await Promise.all([
-    sb.from("members").select("id, name, dupr"),
+    sb.from("members").select("id, name, dupr, dupr_player_id, dupr_dupr_id, dupr_updated_at"),
     sb.from("attendances").select("member_id").eq("status", "join"),
   ]);
   const counts = new Map<string, number>();
   for (const a of (atts as { member_id: string }[]) ?? []) {
     counts.set(a.member_id, (counts.get(a.member_id) ?? 0) + 1);
   }
-  return ((members as { id: string; name: string; dupr: number | null }[]) ?? [])
+  return ((members as MemberRow[]) ?? [])
     .map((m) => ({
       id: m.id,
       name: m.name,
       joinCount: counts.get(m.id) ?? 0,
       dupr: m.dupr,
+      duprPlayerId: m.dupr_player_id,
+      duprId: m.dupr_dupr_id,
+      duprUpdatedAt: m.dupr_updated_at,
     }))
     .sort((a, b) => b.joinCount - a.joinCount || a.name.localeCompare(b.name));
 }

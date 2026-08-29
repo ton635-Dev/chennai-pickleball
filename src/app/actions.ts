@@ -105,6 +105,90 @@ export async function updateMemberDupr(
   revalidatePath("/more");
 }
 
+/** DUPRプレイヤー検索(連携用)。DUPR未設定環境ではエラー */
+export async function searchDupr(query: string) {
+  const { searchDuprPlayers } = await import("@/lib/dupr");
+  if (!query.trim()) return [];
+  return searchDuprPlayers(query);
+}
+
+/** DUPRプロフィールをひも付けて、現在のレーティングを反映 */
+export async function linkMemberDupr(
+  memberId: string,
+  playerId: number,
+  duprId: string | null,
+  doubles: number | null,
+  actorId: string | null
+) {
+  const { error } = await sb()
+    .from("members")
+    .update({
+      dupr_player_id: playerId,
+      dupr_dupr_id: duprId,
+      dupr: doubles,
+      dupr_updated_at: new Date().toISOString(),
+    })
+    .eq("id", memberId);
+  if (error) throw new Error(error.message);
+  await log(
+    "member",
+    memberId,
+    actorId,
+    "dupr",
+    `DUPRプロフィールを連携(${duprId ?? playerId}${doubles != null ? `・${doubles}` : ""})`
+  );
+  revalidatePath("/more");
+}
+
+/** DUPR連携を解除(表示中のレーティングは残す) */
+export async function unlinkMemberDupr(memberId: string, actorId: string | null) {
+  const { error } = await sb()
+    .from("members")
+    .update({ dupr_player_id: null, dupr_dupr_id: null, dupr_updated_at: null })
+    .eq("id", memberId);
+  if (error) throw new Error(error.message);
+  await log("member", memberId, actorId, "dupr", "DUPR連携を解除");
+  revalidatePath("/more");
+}
+
+/** 連携済み全メンバーのレーティングをDUPRから再取得 */
+export async function refreshDuprRatings(actorId: string | null) {
+  const { getDuprPlayer, duprConfigured } = await import("@/lib/dupr");
+  if (!duprConfigured()) throw new Error("DUPR連携が設定されていません");
+  const { data, error } = await sb()
+    .from("members")
+    .select("id, name, dupr, dupr_player_id")
+    .not("dupr_player_id", "is", null);
+  if (error) throw new Error(error.message);
+  const rows = (data ?? []) as {
+    id: string;
+    name: string;
+    dupr: number | null;
+    dupr_player_id: number;
+  }[];
+  let updated = 0;
+  for (const m of rows) {
+    const p = await getDuprPlayer(m.dupr_player_id);
+    if (!p) continue; // 一時的な取得失敗はスキップ(既存値を保持)
+    await sb()
+      .from("members")
+      .update({ dupr: p.doubles, dupr_updated_at: new Date().toISOString() })
+      .eq("id", m.id);
+    if (p.doubles !== m.dupr) updated++;
+  }
+  if (rows.length > 0) {
+    await log(
+      "member",
+      null,
+      actorId,
+      "dupr",
+      `DUPRを一括更新(対象${rows.length}名・変動${updated}名)`
+    );
+  }
+  revalidatePath("/more");
+  return { total: rows.length, updated };
+}
+
 /** UPIコード(QR画像)を登録/差し替え。Storageへのアップロードはクライアントで実施済み */
 export async function setMemberUpiQr(
   memberId: string,
