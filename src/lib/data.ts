@@ -112,6 +112,7 @@ export interface MemberStat {
   id: string;
   name: string;
   joinCount: number;
+  dupr: number | null;
 }
 
 /** メンバーごとの参加回数(status='join')集計 */
@@ -119,15 +120,20 @@ export async function getMemberStats(): Promise<MemberStat[]> {
   const sb = getServerSupabase();
   if (!sb) return [];
   const [{ data: members }, { data: atts }] = await Promise.all([
-    sb.from("members").select("id, name"),
+    sb.from("members").select("id, name, dupr"),
     sb.from("attendances").select("member_id").eq("status", "join"),
   ]);
   const counts = new Map<string, number>();
   for (const a of (atts as { member_id: string }[]) ?? []) {
     counts.set(a.member_id, (counts.get(a.member_id) ?? 0) + 1);
   }
-  return ((members as { id: string; name: string }[]) ?? [])
-    .map((m) => ({ id: m.id, name: m.name, joinCount: counts.get(m.id) ?? 0 }))
+  return ((members as { id: string; name: string; dupr: number | null }[]) ?? [])
+    .map((m) => ({
+      id: m.id,
+      name: m.name,
+      joinCount: counts.get(m.id) ?? 0,
+      dupr: m.dupr,
+    }))
     .sort((a, b) => b.joinCount - a.joinCount || a.name.localeCompare(b.name));
 }
 

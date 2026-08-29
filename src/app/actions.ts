@@ -84,6 +84,27 @@ export async function updateMemberName(id: string, name: string) {
   return { id, name: trimmed };
 }
 
+/** DUPRレーティングを設定/更新/クリア(null)。手入力運用のため誰でも編集可 */
+export async function updateMemberDupr(
+  id: string,
+  dupr: number | null,
+  actorId: string | null
+) {
+  if (dupr !== null && (!Number.isFinite(dupr) || dupr < 2 || dupr > 8)) {
+    throw new Error("DUPRは2.0〜8.0の範囲で入力してください");
+  }
+  const { error } = await sb().from("members").update({ dupr }).eq("id", id);
+  if (error) throw new Error(error.message);
+  await log(
+    "member",
+    id,
+    actorId,
+    "dupr",
+    dupr === null ? "DUPRをクリア" : `DUPRを${dupr}に設定`
+  );
+  revalidatePath("/more");
+}
+
 /** UPIコード(QR画像)を登録/差し替え。Storageへのアップロードはクライアントで実施済み */
 export async function setMemberUpiQr(
   memberId: string,

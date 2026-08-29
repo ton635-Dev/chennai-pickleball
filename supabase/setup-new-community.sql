@@ -475,6 +475,12 @@ alter table attendances add column if not exists extra_adults int not null defau
 alter table attendances add column if not exists extra_children int not null default 0;
 
 
+-- ============ phase9-dupr.sql ============
+alter table members
+  add column if not exists dupr numeric(4,3)
+    check (dupr >= 2 and dupr <= 8);
+
+
 -- ============ スキーマの権限付与(PostgRESTからアクセスできるようにする) ============
 grant usage on schema community2 to anon, authenticated, service_role;
 grant all on all tables in schema community2 to anon, authenticated, service_role;

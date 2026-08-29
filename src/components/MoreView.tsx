@@ -4,11 +4,29 @@ import { useState, type ReactNode } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useMember } from "./MemberProvider";
-import { updateMemberName, deleteMember, findMembersByName } from "@/app/actions";
+import {
+  updateMemberName,
+  updateMemberDupr,
+  deleteMember,
+  findMembersByName,
+} from "@/app/actions";
 import { Avatar } from "./bits";
 import { PickleballIcon } from "./PickleballIcon";
 import { UpiQrManager } from "./UpiQrManager";
 import type { MemberStat } from "@/lib/data";
+
+/** 3.500 → "3.5"、3.542 → "3.542" のように末尾の0を省いて表示 */
+const formatDupr = (v: number) =>
+  v.toFixed(3).replace(/0+$/, "").replace(/\.$/, "");
+
+/** 入力文字列をDUPR値に変換。空=クリア(null)、範囲外・数値でないものは undefined */
+const parseDupr = (s: string): number | null | undefined => {
+  const t = s.trim();
+  if (!t) return null;
+  const n = Number(t);
+  if (!Number.isFinite(n) || n < 2 || n > 8) return undefined;
+  return Math.round(n * 1000) / 1000;
+};
 
 const MENU: { href: string; icon: ReactNode; label: string; desc: string }[] = [
   { href: "/courts", icon: "📍", label: "コート情報", desc: "コートの登録・評価・写真" },
@@ -30,9 +48,19 @@ export function MoreView({ stats }: { stats: MemberStat[] }) {
   const [busy, setBusy] = useState(false);
   const [saved, setSaved] = useState(false);
 
+  // プロフィール(自分のDUPR)
+  const myStat = stats.find((s) => s.id === member?.id);
+  const [duprInput, setDuprInput] = useState(
+    myStat?.dupr != null ? formatDupr(myStat.dupr) : ""
+  );
+  const [duprBusy, setDuprBusy] = useState(false);
+  const [duprSaved, setDuprSaved] = useState(false);
+  const [duprError, setDuprError] = useState(false);
+
   // メンバー一覧の編集・削除
   const [editingId, setEditingId] = useState<string | null>(null);
   const [editName, setEditName] = useState("");
+  const [editDupr, setEditDupr] = useState("");
   const [confirm, setConfirm] = useState<MemberStat | null>(null);
   const [rowBusy, setRowBusy] = useState(false);
   // 同名が既にある場合の選択(自分の改名時)
@@ -58,13 +86,38 @@ export function MoreView({ stats }: { stats: MemberStat[] }) {
     }
   };
 
+  const saveSelfDupr = async () => {
+    if (!member) return;
+    const v = parseDupr(duprInput);
+    if (v === undefined) {
+      setDuprError(true);
+      return;
+    }
+    setDuprError(false);
+    setDuprBusy(true);
+    try {
+      await updateMemberDupr(member.id, v, member.id);
+      setDuprSaved(true);
+      setTimeout(() => setDuprSaved(false), 1600);
+      router.refresh();
+    } finally {
+      setDuprBusy(false);
+    }
+  };
+
   const startEdit = (m: MemberStat) => {
     setEditingId(m.id);
     setEditName(m.name);
+    setEditDupr(m.dupr != null ? formatDupr(m.dupr) : "");
   };
 
   const saveEdit = async (m: MemberStat) => {
     if (!editName.trim()) return;
+    const dupr = parseDupr(editDupr);
+    if (dupr === undefined) {
+      setRowError("DUPRは2.0〜8.0の範囲で入力してください。");
+      return;
+    }
     setRowBusy(true);
     setRowError(null);
     try {
@@ -77,6 +130,9 @@ export function MoreView({ stats }: { stats: MemberStat[] }) {
         return;
       }
       const res = await updateMemberName(m.id, editName);
+      if (dupr !== m.dupr) {
+        await updateMemberDupr(m.id, dupr, member?.id ?? null);
+      }
       // 自分を変更した場合は端末の保存名も更新
       if (member?.id === m.id) setMember({ id: res.id, name: res.name });
       setEditingId(null);
@@ -147,6 +203,38 @@ export function MoreView({ stats }: { stats: MemberStat[] }) {
                 {saved ? "保存済" : "保存"}
               </button>
             </div>
+            <div className="mt-3 border-t border-line pt-3">
+              <label className="mb-1.5 block text-xs font-extrabold text-muted">
+                DUPRレーティング(任意・2.0〜8.0)
+              </label>
+              <div className="flex gap-2">
+                <input
+                  value={duprInput}
+                  onChange={(e) => setDuprInput(e.target.value)}
+                  type="number"
+                  inputMode="decimal"
+                  step="0.01"
+                  min={2}
+                  max={8}
+                  placeholder="例: 3.5"
+                  className={`w-28 rounded-xl border bg-bg px-3.5 py-2.5 text-[15px] outline-none focus:border-primary ${
+                    duprError ? "border-red-400" : "border-line"
+                  }`}
+                />
+                <button
+                  onClick={saveSelfDupr}
+                  disabled={duprBusy}
+                  className="btn-pill bg-primary px-5 text-sm text-white disabled:opacity-50"
+                >
+                  {duprSaved ? "保存済" : "保存"}
+                </button>
+              </div>
+              {duprError && (
+                <p className="mt-1 text-xs text-red-600">
+                  2.0〜8.0の数値で入力してください(空欄で保存すると未設定に戻ります)
+                </p>
+              )}
+            </div>
             <button
               onClick={signOut}
               className="mt-3 text-[13px] font-bold text-primary underline"
@@ -165,7 +253,7 @@ export function MoreView({ stats }: { stats: MemberStat[] }) {
       {/* メンバー一覧(編集・削除) */}
       <div className="card p-4">
         <h2 className="mb-2.5 text-sm font-extrabold text-muted">
-          メンバー一覧(参加回数)
+          メンバー一覧(参加回数・DUPR)
         </h2>
         {rowError && (
           <p className="mb-2 text-sm text-red-600">{rowError}</p>
@@ -193,6 +281,19 @@ export function MoreView({ stats }: { stats: MemberStat[] }) {
                       autoFocus
                       className="min-w-0 flex-1 rounded-lg border border-line bg-bg px-2.5 py-1.5 text-sm outline-none focus:border-primary"
                     />
+                    <input
+                      value={editDupr}
+                      onChange={(e) => setEditDupr(e.target.value)}
+                      onKeyDown={(e) => e.key === "Enter" && saveEdit(m)}
+                      type="number"
+                      inputMode="decimal"
+                      step="0.01"
+                      min={2}
+                      max={8}
+                      placeholder="DUPR"
+                      aria-label="DUPRレーティング"
+                      className="w-16 shrink-0 rounded-lg border border-line bg-bg px-2 py-1.5 text-sm outline-none focus:border-primary"
+                    />
                     <button
                       onClick={() => saveEdit(m)}
                       disabled={rowBusy || !editName.trim()}
@@ -213,6 +314,11 @@ export function MoreView({ stats }: { stats: MemberStat[] }) {
                     {isMe && (
                       <span className="shrink-0 rounded-pill bg-[#E2F3EE] px-2 py-0.5 text-[10px] font-extrabold text-primary-dark">
                         あなた
+                      </span>
+                    )}
+                    {m.dupr != null && (
+                      <span className="shrink-0 rounded-pill border border-line bg-bg px-2 py-0.5 text-[10px] font-extrabold text-muted">
+                        DUPR {formatDupr(m.dupr)}
                       </span>
                     )}
                     <span className="ml-auto shrink-0 text-[13px] font-bold text-muted">
