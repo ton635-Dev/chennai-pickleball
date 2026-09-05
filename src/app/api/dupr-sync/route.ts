@@ -10,13 +10,9 @@ export async function GET() {
   if (!duprConfigured()) {
     return NextResponse.json({ ok: true, skipped: "DUPR not configured" });
   }
-  try {
-    const res = await refreshDuprRatings(null);
-    return NextResponse.json({ ok: true, ...res });
-  } catch (e) {
-    return NextResponse.json(
-      { ok: false, error: e instanceof Error ? e.message : String(e) },
-      { status: 500 }
-    );
+  const res = await refreshDuprRatings(null);
+  if (res.error) {
+    return NextResponse.json({ ok: false, ...res }, { status: 500 });
   }
+  return NextResponse.json({ ok: true, ...res });
 }

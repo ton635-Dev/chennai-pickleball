@@ -57,6 +57,12 @@ async function getToken(): Promise<string> {
   if (!res.ok || !token) {
     // 連続ログイン試行によるブロックを悪化させないため5分のクールダウン
     cache.blockedUntil = Date.now() + 5 * 60 * 1000;
+    // 5xxはDUPR側の一時障害。認証情報の問題と紛らわしいので分けて伝える
+    if (res.status >= 500) {
+      throw new Error(
+        `DUPR側が一時的に応答していません(${res.status})。しばらくしてからもう一度お試しください`
+      );
+    }
     throw new Error(
       `DUPRログインに失敗しました(${json?.message ?? res.status})。環境変数 DUPR_EMAIL / DUPR_PASSWORD を確認し、数分おいて再試行してください`
     );

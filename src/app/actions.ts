@@ -105,11 +105,23 @@ export async function updateMemberDupr(
   revalidatePath("/more");
 }
 
-/** DUPRプレイヤー検索(連携用)。DUPR未設定環境ではエラー */
-export async function searchDupr(query: string) {
-  const { searchDuprPlayers } = await import("@/lib/dupr");
-  if (!query.trim()) return [];
-  return searchDuprPlayers(query);
+// 本番のServer Actionは throw するとNext.jsがエラー文を隠してしまい
+// 画面に生の英語メッセージが出る。DUPR系は {error} を返す方式にして
+// クライアントでそのまま表示する。
+const errText = (e: unknown) =>
+  e instanceof Error ? e.message : "エラーが発生しました";
+
+/** DUPRプレイヤー検索(連携用) */
+export async function searchDupr(
+  query: string
+): Promise<{ players?: import("@/lib/dupr").DuprPlayer[]; error?: string }> {
+  try {
+    const { searchDuprPlayers } = await import("@/lib/dupr");
+    if (!query.trim()) return { players: [] };
+    return { players: await searchDuprPlayers(query) };
+  } catch (e) {
+    return { error: errText(e) };
+  }
 }
 
 /** DUPRプロフィールをひも付けて、現在のレーティングを反映 */
@@ -119,40 +131,63 @@ export async function linkMemberDupr(
   duprId: string | null,
   doubles: number | null,
   actorId: string | null
-) {
-  const { error } = await sb()
-    .from("members")
-    .update({
-      dupr_player_id: playerId,
-      dupr_dupr_id: duprId,
-      dupr: doubles,
-      dupr_updated_at: new Date().toISOString(),
-    })
-    .eq("id", memberId);
-  if (error) throw new Error(error.message);
-  await log(
-    "member",
-    memberId,
-    actorId,
-    "dupr",
-    `DUPRプロフィールを連携(${duprId ?? playerId}${doubles != null ? `・${doubles}` : ""})`
-  );
-  revalidatePath("/more");
+): Promise<{ error?: string }> {
+  try {
+    const { error } = await sb()
+      .from("members")
+      .update({
+        dupr_player_id: playerId,
+        dupr_dupr_id: duprId,
+        dupr: doubles,
+        dupr_updated_at: new Date().toISOString(),
+      })
+      .eq("id", memberId);
+    if (error) throw new Error(error.message);
+    await log(
+      "member",
+      memberId,
+      actorId,
+      "dupr",
+      `DUPRプロフィールを連携(${duprId ?? playerId}${doubles != null ? `・${doubles}` : ""})`
+    );
+    revalidatePath("/more");
+    return {};
+  } catch (e) {
+    return { error: errText(e) };
+  }
 }
 
 /** DUPR連携を解除(表示中のレーティングは残す) */
-export async function unlinkMemberDupr(memberId: string, actorId: string | null) {
-  const { error } = await sb()
-    .from("members")
-    .update({ dupr_player_id: null, dupr_dupr_id: null, dupr_updated_at: null })
-    .eq("id", memberId);
-  if (error) throw new Error(error.message);
-  await log("member", memberId, actorId, "dupr", "DUPR連携を解除");
-  revalidatePath("/more");
+export async function unlinkMemberDupr(
+  memberId: string,
+  actorId: string | null
+): Promise<{ error?: string }> {
+  try {
+    const { error } = await sb()
+      .from("members")
+      .update({ dupr_player_id: null, dupr_dupr_id: null, dupr_updated_at: null })
+      .eq("id", memberId);
+    if (error) throw new Error(error.message);
+    await log("member", memberId, actorId, "dupr", "DUPR連携を解除");
+    revalidatePath("/more");
+    return {};
+  } catch (e) {
+    return { error: errText(e) };
+  }
 }
 
 /** 連携済み全メンバーのレーティングをDUPRから再取得 */
-export async function refreshDuprRatings(actorId: string | null) {
+export async function refreshDuprRatings(
+  actorId: string | null
+): Promise<{ total: number; updated: number; error?: string }> {
+  try {
+    return await refreshDuprRatingsInner(actorId);
+  } catch (e) {
+    return { total: 0, updated: 0, error: errText(e) };
+  }
+}
+
+async function refreshDuprRatingsInner(actorId: string | null) {
   const { getDuprPlayer, duprConfigured } = await import("@/lib/dupr");
   if (!duprConfigured()) throw new Error("DUPR連携が設定されていません");
   const { data, error } = await sb()

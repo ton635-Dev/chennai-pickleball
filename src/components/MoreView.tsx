@@ -110,15 +110,20 @@ export function MoreView({
     setDuprSearching(true);
     setDuprLinkMsg(null);
     try {
-      const hits = await searchDupr(duprQuery);
+      const res = await searchDupr(duprQuery);
+      if (res.error) {
+        setDuprLinkMsg(res.error);
+        return;
+      }
+      const hits = res.players ?? [];
       setDuprCandidates(hits);
       if (hits.length === 0) {
         setDuprLinkMsg(
           "見つかりませんでした。DUPRアプリの表示名(英字)やDUPR IDで試してください"
         );
       }
-    } catch (e) {
-      setDuprLinkMsg(e instanceof Error ? e.message : "検索に失敗しました");
+    } catch {
+      setDuprLinkMsg("検索に失敗しました。通信環境を確認してください");
     } finally {
       setDuprSearching(false);
     }
@@ -128,12 +133,22 @@ export function MoreView({
     if (!member) return;
     setDuprSearching(true);
     try {
-      await linkMemberDupr(member.id, p.id, p.duprId, p.doubles, member.id);
+      const res = await linkMemberDupr(
+        member.id,
+        p.id,
+        p.duprId,
+        p.doubles,
+        member.id
+      );
+      if (res.error) {
+        setDuprLinkMsg(res.error);
+        return;
+      }
       setDuprCandidates(null);
       setDuprLinkMsg(null);
       router.refresh();
-    } catch (e) {
-      setDuprLinkMsg(e instanceof Error ? e.message : "連携に失敗しました");
+    } catch {
+      setDuprLinkMsg("連携に失敗しました。通信環境を確認してください");
     } finally {
       setDuprSearching(false);
     }
@@ -143,7 +158,12 @@ export function MoreView({
     if (!member) return;
     setDuprSearching(true);
     try {
-      await unlinkMemberDupr(member.id, member.id);
+      const res = await unlinkMemberDupr(member.id, member.id);
+      if (res.error) {
+        setDuprLinkMsg(res.error);
+        return;
+      }
+      setDuprLinkMsg(null);
       router.refresh();
     } finally {
       setDuprSearching(false);
@@ -155,14 +175,18 @@ export function MoreView({
     setRefreshMsg(null);
     try {
       const res = await refreshDuprRatings(member?.id ?? null);
+      if (res.error) {
+        setRefreshMsg(res.error);
+        return;
+      }
       setRefreshMsg(
         res.total === 0
           ? "連携済みのメンバーがいません"
           : `更新しました(対象${res.total}名・変動${res.updated}名)`
       );
       router.refresh();
-    } catch (e) {
-      setRefreshMsg(e instanceof Error ? e.message : "更新に失敗しました");
+    } catch {
+      setRefreshMsg("更新に失敗しました。通信環境を確認してください");
     } finally {
       setRefreshBusy(false);
     }
@@ -311,6 +335,9 @@ export function MoreView({
                     <p className="mt-1 text-[11px] text-muted">
                       最終更新: {new Date(myStat.duprUpdatedAt).toLocaleDateString("ja-JP")}
                     </p>
+                  )}
+                  {duprLinkMsg && (
+                    <p className="mt-1.5 text-xs text-red-600">{duprLinkMsg}</p>
                   )}
                 </div>
               ) : (
