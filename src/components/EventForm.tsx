@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { useMember } from "./MemberProvider";
 import { createEvent, updateEvent, type EventInput } from "@/app/actions";
+import { TimeSelect } from "./TimeSelect";
 import type { EventRow } from "@/lib/types";
 
 interface CourtOption {
@@ -137,20 +138,20 @@ export function EventForm({ event, courts = [], members = [] }: Props) {
         <div className="flex gap-3">
           <div className="flex-1">
             <label className={label}>開始時刻</label>
-            <input
-              type="time"
+            <TimeSelect
               value={start}
-              onChange={(e) => setStart(e.target.value)}
+              onChange={setStart}
               className={field}
+              aria-label="開始時刻"
             />
           </div>
           <div className="flex-1">
             <label className={label}>終了時刻</label>
-            <input
-              type="time"
+            <TimeSelect
               value={end}
-              onChange={(e) => setEnd(e.target.value)}
+              onChange={setEnd}
               className={field}
+              aria-label="終了時刻"
             />
           </div>
         </div>
