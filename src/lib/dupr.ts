@@ -36,13 +36,8 @@ interface TokenCache {
 const g = globalThis as typeof globalThis & { __duprCache?: TokenCache };
 const cache = (g.__duprCache ??= {});
 
-async function getToken(): Promise<string> {
-  if (cache.token && Date.now() < cache.token.expiresAt) return cache.token.value;
-  if (cache.blockedUntil && Date.now() < cache.blockedUntil) {
-    throw new Error(
-      "DUPRへのログインが一時的に制限されています。数分おいてもう一度お試しください"
-    );
-  }
+/** ログイン試行(1回) */
+async function loginOnce() {
   const res = await fetch(`${BASE}/auth/v1.0/login`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
@@ -53,16 +48,33 @@ async function getToken(): Promise<string> {
     cache: "no-store",
   });
   const json = await res.json().catch(() => null);
-  const token = json?.result?.accessToken;
+  return { res, json, token: json?.result?.accessToken as string | undefined };
+}
+
+async function getToken(): Promise<string> {
+  if (cache.token && Date.now() < cache.token.expiresAt) return cache.token.value;
+  if (cache.blockedUntil && Date.now() < cache.blockedUntil) {
+    throw new Error(
+      "DUPRへのログインが一時的に制限されています。数分おいてもう一度お試しください"
+    );
+  }
+  let { res, json, token } = await loginOnce();
+  // DUPR側の5xxは断続的に起きるため、間を置いて2回まで再試行する
+  for (let i = 0; i < 2 && !token && res.status >= 500; i++) {
+    await new Promise((r) => setTimeout(r, 1500 * (i + 1)));
+    ({ res, json, token } = await loginOnce());
+  }
   if (!res.ok || !token) {
-    // 連続ログイン試行によるブロックを悪化させないため5分のクールダウン
-    cache.blockedUntil = Date.now() + 5 * 60 * 1000;
-    // 5xxはDUPR側の一時障害。認証情報の問題と紛らわしいので分けて伝える
+    // 5xxはDUPR側の一時障害。認証情報の問題と紛らわしいので分けて伝える。
+    // こちらのクールダウンで再試行を妨げないよう、5xxは短め(1分)にする
     if (res.status >= 500) {
+      cache.blockedUntil = Date.now() + 60 * 1000;
       throw new Error(
         `DUPR側が一時的に応答していません(${res.status})。しばらくしてからもう一度お試しください`
       );
     }
+    // 認証エラーは連続試行でアカウントがロックされ得るため5分空ける
+    cache.blockedUntil = Date.now() + 5 * 60 * 1000;
     throw new Error(
       `DUPRログインに失敗しました(${json?.message ?? res.status})。環境変数 DUPR_EMAIL / DUPR_PASSWORD を確認し、数分おいて再試行してください`
     );
