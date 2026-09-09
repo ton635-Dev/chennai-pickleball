@@ -224,6 +224,46 @@ async function refreshDuprRatingsInner(actorId: string | null) {
   return { total: rows.length, updated };
 }
 
+/** DUPR認証(メール2段階認証)を開始: パスワードでログインし、メールに6桁コードを送らせる */
+export async function duprStartAuth(
+  actorId: string | null
+): Promise<{ done?: boolean; error?: string }> {
+  try {
+    const { startDuprChallenge } = await import("@/lib/dupr");
+    const res = await startDuprChallenge();
+    await log(
+      "member",
+      null,
+      actorId,
+      "dupr",
+      res.done ? "DUPR認証を完了(コード不要)" : "DUPR認証コードを送信"
+    );
+    revalidatePath("/more");
+    return res;
+  } catch (e) {
+    return { error: errText(e) };
+  }
+}
+
+/** メールで届いた6桁コードを検証してDUPRトークンを保存 */
+export async function duprVerifyCode(
+  code: string,
+  actorId: string | null
+): Promise<{ error?: string }> {
+  try {
+    if (!/^\d{6}$/.test(code.trim())) {
+      return { error: "6桁の数字を入力してください" };
+    }
+    const { verifyDuprCode } = await import("@/lib/dupr");
+    await verifyDuprCode(code);
+    await log("member", null, actorId, "dupr", "DUPR認証を完了");
+    revalidatePath("/more");
+    return {};
+  } catch (e) {
+    return { error: errText(e) };
+  }
+}
+
 /** UPIコード(QR画像)を登録/差し替え。Storageへのアップロードはクライアントで実施済み */
 export async function setMemberUpiQr(
   memberId: string,

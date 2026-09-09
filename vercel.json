@@ -6,7 +6,7 @@
     },
     {
       "path": "/api/dupr-sync",
-      "schedule": "30 3 * * 1"
+      "schedule": "30 3 * * *"
     }
   ]
 }

@@ -13,8 +13,10 @@ import {
   linkMemberDupr,
   unlinkMemberDupr,
   refreshDuprRatings,
+  duprStartAuth,
+  duprVerifyCode,
 } from "@/app/actions";
-import type { DuprPlayer } from "@/lib/dupr";
+import type { DuprPlayer, DuprAuthStatus } from "@/lib/dupr";
 import { Avatar } from "./bits";
 import { PickleballIcon } from "./PickleballIcon";
 import { UpiQrManager } from "./UpiQrManager";
@@ -46,11 +48,12 @@ const MENU: { href: string; icon: ReactNode; label: string; desc: string }[] = [
 
 export function MoreView({
   stats,
-  duprEnabled,
+  duprAuth,
 }: {
   stats: MemberStat[];
-  duprEnabled: boolean;
+  duprAuth: DuprAuthStatus;
 }) {
+  const duprEnabled = duprAuth.configured;
   const { member, setMember, signOut } = useMember();
   const router = useRouter();
 
@@ -75,6 +78,12 @@ export function MoreView({
   const [duprLinkMsg, setDuprLinkMsg] = useState<string | null>(null);
   const [refreshBusy, setRefreshBusy] = useState(false);
   const [refreshMsg, setRefreshMsg] = useState<string | null>(null);
+
+  // DUPR認証(メール2段階認証)
+  const [authBusy, setAuthBusy] = useState(false);
+  const [authCode, setAuthCode] = useState("");
+  const [authMsg, setAuthMsg] = useState<string | null>(null);
+  const [codeSent, setCodeSent] = useState(duprAuth.pendingCode);
 
   // メンバー一覧の編集・削除
   const [editingId, setEditingId] = useState<string | null>(null);
@@ -189,6 +198,49 @@ export function MoreView({
       setRefreshMsg("更新に失敗しました。通信環境を確認してください");
     } finally {
       setRefreshBusy(false);
+    }
+  };
+
+  const doAuthStart = async () => {
+    setAuthBusy(true);
+    setAuthMsg(null);
+    try {
+      const res = await duprStartAuth(member?.id ?? null);
+      if (res.error) {
+        setAuthMsg(res.error);
+        return;
+      }
+      if (res.done) {
+        setAuthMsg("認証が完了しました");
+        router.refresh();
+        return;
+      }
+      setCodeSent(true);
+      setAuthMsg("DUPRアカウントのメールに6桁コードを送りました。届いたコードを入力してください");
+    } catch {
+      setAuthMsg("通信に失敗しました。通信環境を確認してください");
+    } finally {
+      setAuthBusy(false);
+    }
+  };
+
+  const doAuthVerify = async () => {
+    setAuthBusy(true);
+    setAuthMsg(null);
+    try {
+      const res = await duprVerifyCode(authCode, member?.id ?? null);
+      if (res.error) {
+        setAuthMsg(res.error);
+        return;
+      }
+      setAuthCode("");
+      setCodeSent(false);
+      setAuthMsg("認証が完了しました。以後は自動で維持されます");
+      router.refresh();
+    } catch {
+      setAuthMsg("通信に失敗しました。通信環境を確認してください");
+    } finally {
+      setAuthBusy(false);
     }
   };
 
@@ -446,6 +498,74 @@ export function MoreView({
           </p>
         )}
       </div>
+
+      {/* DUPR連携の認証(メール2段階認証・管理用) */}
+      {duprEnabled && (
+        <div className="card mb-3 p-4">
+          <div className="flex items-center justify-between">
+            <h2 className="text-sm font-extrabold text-muted">DUPR連携の認証</h2>
+            <span
+              className={`rounded-pill px-2 py-0.5 text-[10px] font-extrabold ${
+                duprAuth.authenticated
+                  ? "bg-[#E2F3EE] text-primary-dark"
+                  : "bg-red-50 text-red-600"
+              }`}
+            >
+              {duprAuth.authenticated ? "認証済み" : "要認証"}
+            </span>
+          </div>
+          <p className="mt-1.5 text-xs leading-relaxed text-muted">
+            {duprAuth.authenticated
+              ? `DUPRの自動取得が有効です${
+                  duprAuth.savedAt
+                    ? `(最終更新: ${new Date(duprAuth.savedAt).toLocaleDateString("ja-JP")})`
+                    : ""
+                }。検索や更新が「再認証が必要」と出たときだけ、下のボタンで認証し直してください。`
+              : "DUPRの自動取得には、DUPRアカウントのメールに届く6桁コードでの認証が必要です(初回と、ごくたまに)。"}
+          </p>
+          <div className="mt-2.5 flex flex-wrap items-center gap-2">
+            <button
+              onClick={doAuthStart}
+              disabled={authBusy}
+              className="btn-pill border border-line bg-surface px-4 py-2 text-xs font-bold text-primary-dark disabled:opacity-50"
+            >
+              {authBusy && !codeSent ? "送信中…" : codeSent ? "コードを再送" : "認証コードを送る"}
+            </button>
+            {codeSent && (
+              <>
+                <input
+                  value={authCode}
+                  onChange={(e) => setAuthCode(e.target.value.replace(/\D/g, "").slice(0, 6))}
+                  onKeyDown={(e) => e.key === "Enter" && authCode.length === 6 && doAuthVerify()}
+                  inputMode="numeric"
+                  pattern="\d*"
+                  placeholder="6桁コード"
+                  aria-label="DUPR認証コード"
+                  className="w-28 rounded-xl border border-line bg-bg px-3 py-2 text-center text-[15px] tracking-widest outline-none focus:border-primary"
+                />
+                <button
+                  onClick={doAuthVerify}
+                  disabled={authBusy || authCode.length !== 6}
+                  className="btn-pill bg-primary px-4 py-2 text-xs text-white disabled:opacity-50"
+                >
+                  認証する
+                </button>
+              </>
+            )}
+          </div>
+          {authMsg && (
+            <p
+              className={`mt-2 text-xs ${
+                authMsg.includes("完了") || authMsg.includes("送りました")
+                  ? "text-primary-dark"
+                  : "text-red-600"
+              }`}
+            >
+              {authMsg}
+            </p>
+          )}
+        </div>
+      )}
 
       {/* メンバー一覧(編集・削除) */}
       <div className="card p-4">
