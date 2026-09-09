@@ -487,6 +487,12 @@ alter table members add column if not exists dupr_dupr_id text;
 alter table members add column if not exists dupr_updated_at timestamptz;
 
 
+-- ============ phase12-dupr-singles.sql ============
+alter table members
+  add column if not exists dupr_singles numeric(4,3)
+    check (dupr_singles >= 2 and dupr_singles <= 8);
+
+
 -- ============ phase11-dupr-auth.sql ============
 create table if not exists dupr_auth (
   id          smallint primary key default 1 check (id = 1),

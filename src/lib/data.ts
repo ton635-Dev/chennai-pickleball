@@ -112,7 +112,10 @@ export interface MemberStat {
   id: string;
   name: string;
   joinCount: number;
+  /** DUPRダブルス */
   dupr: number | null;
+  /** DUPRシングルス */
+  duprSingles: number | null;
   /** DUPR連携済みなら内部プレイヤーID(自動更新対象) */
   duprPlayerId: number | null;
   /** DUPR ID(共有コード・表示用) */
@@ -124,6 +127,7 @@ interface MemberRow {
   id: string;
   name: string;
   dupr: number | null;
+  dupr_singles: number | null;
   dupr_player_id: number | null;
   dupr_dupr_id: string | null;
   dupr_updated_at: string | null;
@@ -134,7 +138,9 @@ export async function getMemberStats(): Promise<MemberStat[]> {
   const sb = getServerSupabase();
   if (!sb) return [];
   const [{ data: members }, { data: atts }] = await Promise.all([
-    sb.from("members").select("id, name, dupr, dupr_player_id, dupr_dupr_id, dupr_updated_at"),
+    sb
+      .from("members")
+      .select("id, name, dupr, dupr_singles, dupr_player_id, dupr_dupr_id, dupr_updated_at"),
     sb.from("attendances").select("member_id").eq("status", "join"),
   ]);
   const counts = new Map<string, number>();
@@ -147,6 +153,7 @@ export async function getMemberStats(): Promise<MemberStat[]> {
       name: m.name,
       joinCount: counts.get(m.id) ?? 0,
       dupr: m.dupr,
+      duprSingles: m.dupr_singles,
       duprPlayerId: m.dupr_player_id,
       duprId: m.dupr_dupr_id,
       duprUpdatedAt: m.dupr_updated_at,

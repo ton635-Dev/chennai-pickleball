@@ -84,23 +84,29 @@ export async function updateMemberName(id: string, name: string) {
   return { id, name: trimmed };
 }
 
-/** DUPRレーティングを設定/更新/クリア(null)。手入力運用のため誰でも編集可 */
+/** DUPRレーティング(ダブルス/シングルス)を手入力で設定/更新/クリア(null)。誰でも編集可 */
 export async function updateMemberDupr(
   id: string,
   dupr: number | null,
+  singles: number | null,
   actorId: string | null
 ) {
-  if (dupr !== null && (!Number.isFinite(dupr) || dupr < 2 || dupr > 8)) {
-    throw new Error("DUPRは2.0〜8.0の範囲で入力してください");
+  for (const v of [dupr, singles]) {
+    if (v !== null && (!Number.isFinite(v) || v < 2 || v > 8)) {
+      throw new Error("DUPRは2.0〜8.0の範囲で入力してください");
+    }
   }
-  const { error } = await sb().from("members").update({ dupr }).eq("id", id);
+  const { error } = await sb()
+    .from("members")
+    .update({ dupr, dupr_singles: singles })
+    .eq("id", id);
   if (error) throw new Error(error.message);
   await log(
     "member",
     id,
     actorId,
     "dupr",
-    dupr === null ? "DUPRをクリア" : `DUPRを${dupr}に設定`
+    `DUPRを設定(ダブルス${dupr ?? "なし"}・シングルス${singles ?? "なし"})`
   );
   revalidatePath("/more");
 }
@@ -130,6 +136,7 @@ export async function linkMemberDupr(
   playerId: number,
   duprId: string | null,
   doubles: number | null,
+  singles: number | null,
   actorId: string | null
 ): Promise<{ error?: string }> {
   try {
@@ -139,6 +146,7 @@ export async function linkMemberDupr(
         dupr_player_id: playerId,
         dupr_dupr_id: duprId,
         dupr: doubles,
+        dupr_singles: singles,
         dupr_updated_at: new Date().toISOString(),
       })
       .eq("id", memberId);
@@ -192,13 +200,14 @@ async function refreshDuprRatingsInner(actorId: string | null) {
   if (!duprConfigured()) throw new Error("DUPR連携が設定されていません");
   const { data, error } = await sb()
     .from("members")
-    .select("id, name, dupr, dupr_player_id")
+    .select("id, name, dupr, dupr_singles, dupr_player_id")
     .not("dupr_player_id", "is", null);
   if (error) throw new Error(error.message);
   const rows = (data ?? []) as {
     id: string;
     name: string;
     dupr: number | null;
+    dupr_singles: number | null;
     dupr_player_id: number;
   }[];
   let updated = 0;
@@ -207,9 +216,13 @@ async function refreshDuprRatingsInner(actorId: string | null) {
     if (!p) continue; // 一時的な取得失敗はスキップ(既存値を保持)
     await sb()
       .from("members")
-      .update({ dupr: p.doubles, dupr_updated_at: new Date().toISOString() })
+      .update({
+        dupr: p.doubles,
+        dupr_singles: p.singles,
+        dupr_updated_at: new Date().toISOString(),
+      })
       .eq("id", m.id);
-    if (p.doubles !== m.dupr) updated++;
+    if (p.doubles !== m.dupr || p.singles !== m.dupr_singles) updated++;
   }
   if (rows.length > 0) {
     await log(

@@ -26,6 +26,14 @@ import type { MemberStat } from "@/lib/data";
 const formatDupr = (v: number) =>
   v.toFixed(3).replace(/0+$/, "").replace(/\.$/, "");
 
+/** ダブルス/シングルスを "D 3.15 · S 3.4" 形式に。未評価の側は省略、両方なければ "未評価" */
+const formatDuprPair = (d: number | null, s: number | null) => {
+  const parts: string[] = [];
+  if (d != null) parts.push(`D ${formatDupr(d)}`);
+  if (s != null) parts.push(`S ${formatDupr(s)}`);
+  return parts.length ? parts.join(" · ") : "未評価";
+};
+
 /** 入力文字列をDUPR値に変換。空=クリア(null)、範囲外・数値でないものは undefined */
 const parseDupr = (s: string): number | null | undefined => {
   const t = s.trim();
@@ -67,6 +75,9 @@ export function MoreView({
   const [duprInput, setDuprInput] = useState(
     myStat?.dupr != null ? formatDupr(myStat.dupr) : ""
   );
+  const [duprSinglesInput, setDuprSinglesInput] = useState(
+    myStat?.duprSingles != null ? formatDupr(myStat.duprSingles) : ""
+  );
   const [duprBusy, setDuprBusy] = useState(false);
   const [duprSaved, setDuprSaved] = useState(false);
   const [duprError, setDuprError] = useState(false);
@@ -89,6 +100,7 @@ export function MoreView({
   const [editingId, setEditingId] = useState<string | null>(null);
   const [editName, setEditName] = useState("");
   const [editDupr, setEditDupr] = useState("");
+  const [editDuprSingles, setEditDuprSingles] = useState("");
   const [confirm, setConfirm] = useState<MemberStat | null>(null);
   const [rowBusy, setRowBusy] = useState(false);
   // 同名が既にある場合の選択(自分の改名時)
@@ -147,6 +159,7 @@ export function MoreView({
         p.id,
         p.duprId,
         p.doubles,
+        p.singles,
         member.id
       );
       if (res.error) {
@@ -247,14 +260,15 @@ export function MoreView({
   const saveSelfDupr = async () => {
     if (!member) return;
     const v = parseDupr(duprInput);
-    if (v === undefined) {
+    const s = parseDupr(duprSinglesInput);
+    if (v === undefined || s === undefined) {
       setDuprError(true);
       return;
     }
     setDuprError(false);
     setDuprBusy(true);
     try {
-      await updateMemberDupr(member.id, v, member.id);
+      await updateMemberDupr(member.id, v, s, member.id);
       setDuprSaved(true);
       setTimeout(() => setDuprSaved(false), 1600);
       router.refresh();
@@ -267,12 +281,14 @@ export function MoreView({
     setEditingId(m.id);
     setEditName(m.name);
     setEditDupr(m.dupr != null ? formatDupr(m.dupr) : "");
+    setEditDuprSingles(m.duprSingles != null ? formatDupr(m.duprSingles) : "");
   };
 
   const saveEdit = async (m: MemberStat) => {
     if (!editName.trim()) return;
     const dupr = parseDupr(editDupr);
-    if (dupr === undefined) {
+    const singles = parseDupr(editDuprSingles);
+    if (dupr === undefined || singles === undefined) {
       setRowError("DUPRは2.0〜8.0の範囲で入力してください。");
       return;
     }
@@ -288,8 +304,8 @@ export function MoreView({
         return;
       }
       const res = await updateMemberName(m.id, editName);
-      if (dupr !== m.dupr) {
-        await updateMemberDupr(m.id, dupr, member?.id ?? null);
+      if (dupr !== m.dupr || singles !== m.duprSingles) {
+        await updateMemberDupr(m.id, dupr, singles, member?.id ?? null);
       }
       // 自分を変更した場合は端末の保存名も更新
       if (member?.id === m.id) setMember({ id: res.id, name: res.name });
@@ -366,11 +382,15 @@ export function MoreView({
                 /* DUPR連携済み: 自動更新の状態表示のみ */
                 <div>
                   <label className="mb-1.5 block text-xs font-extrabold text-muted">
-                    DUPR連携済み(毎週自動更新)
+                    DUPR連携済み(毎日自動更新)
                   </label>
-                  <div className="flex items-center gap-2">
+                  <div className="flex flex-wrap items-center gap-2">
                     <span className="rounded-pill bg-[#E2F3EE] px-3 py-1.5 text-sm font-extrabold text-primary-dark">
-                      {myStat.dupr != null ? formatDupr(myStat.dupr) : "未評価"}
+                      ダブルス {myStat.dupr != null ? formatDupr(myStat.dupr) : "未評価"}
+                    </span>
+                    <span className="rounded-pill bg-[#E2F3EE] px-3 py-1.5 text-sm font-extrabold text-primary-dark">
+                      シングルス{" "}
+                      {myStat.duprSingles != null ? formatDupr(myStat.duprSingles) : "未評価"}
                     </span>
                     {myStat.duprId && (
                       <span className="text-xs text-muted">ID: {myStat.duprId}</span>
@@ -437,8 +457,8 @@ export function MoreView({
                                     .join("・")}
                                 </span>
                               </span>
-                              <span className="shrink-0 text-sm font-extrabold text-primary-dark">
-                                {p.doubles != null ? formatDupr(p.doubles) : "NR"}
+                              <span className="shrink-0 text-right text-xs font-extrabold text-primary-dark">
+                                {formatDuprPair(p.doubles, p.singles)}
                               </span>
                             </button>
                           ))}
@@ -454,24 +474,43 @@ export function MoreView({
                       ? "手入力(連携しない場合・2.0〜8.0)"
                       : "DUPRレーティング(任意・2.0〜8.0)"}
                   </label>
-                  <div className="flex gap-2">
-                    <input
-                      value={duprInput}
-                      onChange={(e) => setDuprInput(e.target.value)}
-                      type="number"
-                      inputMode="decimal"
-                      step="0.01"
-                      min={2}
-                      max={8}
-                      placeholder="例: 3.5"
-                      className={`w-28 rounded-xl border bg-bg px-3.5 py-2.5 text-[15px] outline-none focus:border-primary ${
-                        duprError ? "border-red-400" : "border-line"
-                      }`}
-                    />
+                  <div className="flex flex-wrap items-end gap-2">
+                    <label className="flex flex-col gap-1 text-[11px] font-bold text-muted">
+                      ダブルス
+                      <input
+                        value={duprInput}
+                        onChange={(e) => setDuprInput(e.target.value)}
+                        type="number"
+                        inputMode="decimal"
+                        step="0.01"
+                        min={2}
+                        max={8}
+                        placeholder="例: 3.5"
+                        className={`w-24 rounded-xl border bg-bg px-3 py-2.5 text-[15px] font-normal text-ink outline-none focus:border-primary ${
+                          duprError ? "border-red-400" : "border-line"
+                        }`}
+                      />
+                    </label>
+                    <label className="flex flex-col gap-1 text-[11px] font-bold text-muted">
+                      シングルス
+                      <input
+                        value={duprSinglesInput}
+                        onChange={(e) => setDuprSinglesInput(e.target.value)}
+                        type="number"
+                        inputMode="decimal"
+                        step="0.01"
+                        min={2}
+                        max={8}
+                        placeholder="例: 3.2"
+                        className={`w-24 rounded-xl border bg-bg px-3 py-2.5 text-[15px] font-normal text-ink outline-none focus:border-primary ${
+                          duprError ? "border-red-400" : "border-line"
+                        }`}
+                      />
+                    </label>
                     <button
                       onClick={saveSelfDupr}
                       disabled={duprBusy}
-                      className="btn-pill bg-primary px-5 text-sm text-white disabled:opacity-50"
+                      className="btn-pill bg-primary px-5 py-2.5 text-sm text-white disabled:opacity-50"
                     >
                       {duprSaved ? "保存済" : "保存"}
                     </button>
@@ -571,7 +610,8 @@ export function MoreView({
       <div className="card p-4">
         <div className="mb-2.5 flex items-center justify-between">
           <h2 className="text-sm font-extrabold text-muted">
-            メンバー一覧(参加回数・DUPR)
+            メンバー一覧(参加回数・DUPR <span className="font-bold">D</span>=ダブルス{" "}
+            <span className="font-bold">S</span>=シングルス)
           </h2>
           {duprEnabled && (
             <button
@@ -619,9 +659,24 @@ export function MoreView({
                       step="0.01"
                       min={2}
                       max={8}
-                      placeholder="DUPR"
-                      aria-label="DUPRレーティング"
-                      className="w-16 shrink-0 rounded-lg border border-line bg-bg px-2 py-1.5 text-sm outline-none focus:border-primary"
+                      placeholder="D"
+                      title="DUPRダブルス"
+                      aria-label="DUPRダブルス"
+                      className="w-14 shrink-0 rounded-lg border border-line bg-bg px-2 py-1.5 text-sm outline-none focus:border-primary"
+                    />
+                    <input
+                      value={editDuprSingles}
+                      onChange={(e) => setEditDuprSingles(e.target.value)}
+                      onKeyDown={(e) => e.key === "Enter" && saveEdit(m)}
+                      type="number"
+                      inputMode="decimal"
+                      step="0.01"
+                      min={2}
+                      max={8}
+                      placeholder="S"
+                      title="DUPRシングルス"
+                      aria-label="DUPRシングルス"
+                      className="w-14 shrink-0 rounded-lg border border-line bg-bg px-2 py-1.5 text-sm outline-none focus:border-primary"
                     />
                     <button
                       onClick={() => saveEdit(m)}
@@ -645,16 +700,16 @@ export function MoreView({
                         あなた
                       </span>
                     )}
-                    {m.dupr != null && (
+                    {(m.dupr != null || m.duprSingles != null) && (
                       <span
                         className={`shrink-0 rounded-pill px-2 py-0.5 text-[10px] font-extrabold ${
                           m.duprPlayerId != null
                             ? "bg-[#E2F3EE] text-primary-dark"
                             : "border border-line bg-bg text-muted"
                         }`}
-                        title={m.duprPlayerId != null ? "DUPR連携済み(自動更新)" : "手入力"}
+                        title={`${m.duprPlayerId != null ? "DUPR連携済み(自動更新)" : "手入力"} D=ダブルス S=シングルス`}
                       >
-                        DUPR {formatDupr(m.dupr)}
+                        DUPR {formatDuprPair(m.dupr, m.duprSingles)}
                       </span>
                     )}
                     <span className="ml-auto shrink-0 text-[13px] font-bold text-muted">
