@@ -487,6 +487,10 @@ alter table members add column if not exists dupr_dupr_id text;
 alter table members add column if not exists dupr_updated_at timestamptz;
 
 
+-- ============ phase13-paid-status.sql ============
+alter table attendances add column if not exists paid_at timestamptz;
+
+
 -- ============ phase12-dupr-singles.sql ============
 alter table members
   add column if not exists dupr_singles numeric(4,3)

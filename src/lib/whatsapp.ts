@@ -93,7 +93,15 @@ export function buildRosterText(
                 .join("・")}`
             : "";
         const cmt = a.comment ? ` (${a.comment})` : "";
-        lines.push(`  - ${a.member.name}${extra}${cmt}`);
+        // コート代のある活動は、参加者に支払いステータスを付ける(立替者は除く)
+        const hasFee = ev.court_fee != null || !!ev.fee;
+        const paid =
+          status === "join" && hasFee && a.member_id !== ev.payer_member_id
+            ? a.paid_at
+              ? " ✅支払済"
+              : " ⬜未払い"
+            : "";
+        lines.push(`  - ${a.member.name}${extra}${cmt}${paid}`);
       }
     }
     lines.push("");

@@ -13,6 +13,7 @@ import { buildGoogleCalendarUrl } from "@/lib/gcal";
 import { EventRsvpPanel } from "@/components/EventRsvpPanel";
 import { EventActions } from "@/components/EventActions";
 import { PayerUpiSection } from "@/components/PayerUpiSection";
+import { PaidToggle } from "@/components/PaidToggle";
 import { ShareButton } from "@/components/ShareButton";
 import { AnnouncementShare } from "@/components/AnnouncementShare";
 import { Avatar } from "@/components/bits";
@@ -58,6 +59,12 @@ export default async function EventDetailPage({
   const extraChildren = joins.reduce((s, a) => s + (a.extra_children ?? 0), 0);
   // 割り勘は大人の総数(参加メンバー + 同伴大人)。子供は含めない
   const adultTotal = ev.counts.join + extraAdults;
+
+  // コート代の支払いステータス(費用が設定されている活動のみ表示)
+  const hasFee = ev.court_fee != null || !!ev.fee;
+  const payerId = ev.payer_member_id ?? null;
+  const payees = joins.filter((a) => a.member_id !== payerId);
+  const paidCount = payees.filter((a) => a.paid_at).length;
 
   return (
     <div className="mx-auto w-full max-w-2xl pt-1">
@@ -212,6 +219,18 @@ export default async function EventDetailPage({
                       (計{list.length + extraAdults + extraChildren}名)
                     </span>
                   )}
+                  {g.key === "join" && hasFee && payees.length > 0 && (
+                    <span
+                      className={`ml-auto rounded-pill px-2.5 py-0.5 text-[11px] font-extrabold ${
+                        paidCount === payees.length
+                          ? "bg-primary text-white"
+                          : "bg-[#EDF4F1] text-primary-dark"
+                      }`}
+                    >
+                      支払済 {paidCount}/{payees.length}
+                      {paidCount === payees.length && " 🎉"}
+                    </span>
+                  )}
                 </div>
                 {list.map((a) => {
                   const ea = a.extra_adults ?? 0;
@@ -221,8 +240,8 @@ export default async function EventDetailPage({
                       key={a.id}
                       className="flex items-center gap-2.5 border-b border-line py-2 text-sm last:border-none"
                     >
-                      <Avatar name={a.member.name} className="h-8 w-8 text-xs" />
-                      <span className="min-w-0">
+                      <Avatar name={a.member.name} className="h-8 w-8 shrink-0 text-xs" />
+                      <span className="min-w-0 flex-1">
                         {a.member.name}
                         {(ea > 0 || ec > 0) && (
                           <span className="ml-1.5 rounded-pill bg-[#EDF4F1] px-2 py-0.5 text-[10px] font-extrabold text-primary-dark">
@@ -233,9 +252,20 @@ export default async function EventDetailPage({
                         )}
                       </span>
                       {a.comment && (
-                        <small className="ml-auto max-w-[45%] text-right text-xs text-muted">
+                        <small className="max-w-[40%] text-right text-xs text-muted">
                           {a.comment}
                         </small>
+                      )}
+                      {g.key === "join" && hasFee && (
+                        <PaidToggle
+                          // paid_at が変わったら(他端末での更新を含む)表示を再同期
+                          key={`${a.id}-${a.paid_at ?? ""}`}
+                          eventId={ev.id}
+                          memberId={a.member_id}
+                          memberName={a.member.name}
+                          paidAt={a.paid_at ?? null}
+                          payerId={payerId}
+                        />
                       )}
                     </div>
                   );

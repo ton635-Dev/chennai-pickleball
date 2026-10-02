@@ -46,6 +46,8 @@ export interface Attendance {
   /** 同伴者(追加で連れてくる人数)。大人は割り勘に含む、子供は含まない */
   extra_adults?: number;
   extra_children?: number;
+  /** コート代の支払い完了日時(null=未払い) */
+  paid_at?: string | null;
 }
 
 // 出欠 + メンバー名を結合した表示用

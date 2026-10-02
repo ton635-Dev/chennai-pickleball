@@ -463,6 +463,42 @@ export async function setAttendance(
   revalidatePath(`/events/${eventId}`);
 }
 
+/**
+ * コート代の支払いステータスを切り替え。本人の「支払い完了」/立替者の「受取確認」で使う。
+ * 出欠(status等)には触れないよう update で paid_at だけ更新する
+ */
+export async function setAttendancePaid(
+  eventId: string,
+  memberId: string,
+  paid: boolean,
+  actorId: string | null
+): Promise<{ error?: string }> {
+  try {
+    const { error } = await sb()
+      .from("attendances")
+      .update({ paid_at: paid ? new Date().toISOString() : null })
+      .eq("event_id", eventId)
+      .eq("member_id", memberId);
+    if (error) throw new Error(error.message);
+    const self = actorId === memberId;
+    await log(
+      "attendance",
+      eventId,
+      actorId,
+      "paid",
+      paid
+        ? self
+          ? "コート代を支払い完了にした"
+          : "コート代の受取を確認した"
+        : "コート代の支払いを取り消した"
+    );
+    revalidatePath(`/events/${eventId}`);
+    return {};
+  } catch (e) {
+    return { error: e instanceof Error ? e.message : "更新に失敗しました" };
+  }
+}
+
 // ---------------------------------------------------------------------
 // コート
 // ---------------------------------------------------------------------
