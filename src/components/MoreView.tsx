@@ -609,15 +609,17 @@ export function MoreView({
       {/* メンバー一覧(編集・削除) */}
       <div className="card p-4">
         <div className="mb-2.5 flex items-center justify-between">
-          <h2 className="text-sm font-extrabold text-muted">
-            メンバー一覧(参加回数・DUPR <span className="font-bold">D</span>=ダブルス{" "}
-            <span className="font-bold">S</span>=シングルス)
-          </h2>
+          <div className="min-w-0">
+            <h2 className="text-sm font-extrabold text-muted">メンバー一覧</h2>
+            <p className="mt-0.5 text-[11px] text-muted">
+              参加回数・DUPR(<b>D</b>=ダブルス <b>S</b>=シングルス)
+            </p>
+          </div>
           {duprEnabled && (
             <button
               onClick={doRefreshAll}
               disabled={refreshBusy}
-              className="rounded-lg border border-line px-2.5 py-1.5 text-xs font-bold text-primary-dark disabled:opacity-50"
+              className="shrink-0 whitespace-nowrap rounded-lg border border-line px-2.5 py-1.5 text-xs font-bold text-primary-dark disabled:opacity-50"
             >
               {refreshBusy ? "更新中…" : "⟳ DUPR一括更新"}
             </button>
@@ -642,14 +644,16 @@ export function MoreView({
               >
                 <Avatar name={editing ? editName : m.name} className="h-8 w-8 shrink-0 text-xs" />
                 {editing ? (
-                  <>
+                  /* 編集: 1段目=名前、2段目=DUPR(D/S)と保存・取消(スマホで窮屈にならないよう2段) */
+                  <div className="min-w-0 flex-1 space-y-1.5">
                     <input
                       value={editName}
                       onChange={(e) => setEditName(e.target.value)}
                       onKeyDown={(e) => e.key === "Enter" && saveEdit(m)}
                       autoFocus
-                      className="min-w-0 flex-1 rounded-lg border border-line bg-bg px-2.5 py-1.5 text-sm outline-none focus:border-primary"
+                      className="w-full rounded-lg border border-line bg-bg px-2.5 py-1.5 text-sm outline-none focus:border-primary"
                     />
+                    <div className="flex items-center gap-1.5">
                     <input
                       value={editDupr}
                       onChange={(e) => setEditDupr(e.target.value)}
@@ -691,28 +695,47 @@ export function MoreView({
                     >
                       取消
                     </button>
-                  </>
+                    </div>
+                  </div>
                 ) : (
                   <>
-                    <span className="truncate text-sm font-bold">{m.name}</span>
-                    {isMe && (
-                      <span className="shrink-0 rounded-pill bg-[#E2F3EE] px-2 py-0.5 text-[10px] font-extrabold text-primary-dark">
-                        あなた
-                      </span>
-                    )}
-                    {(m.dupr != null || m.duprSingles != null) && (
-                      <span
-                        className={`shrink-0 rounded-pill px-2 py-0.5 text-[10px] font-extrabold ${
-                          m.duprPlayerId != null
-                            ? "bg-[#E2F3EE] text-primary-dark"
-                            : "border border-line bg-bg text-muted"
-                        }`}
-                        title={`${m.duprPlayerId != null ? "DUPR連携済み(自動更新)" : "手入力"} D=ダブルス S=シングルス`}
-                      >
-                        DUPR {formatDuprPair(m.dupr, m.duprSingles)}
-                      </span>
-                    )}
-                    <span className="ml-auto shrink-0 text-[13px] font-bold text-muted">
+                    {/* 1段目=名前(+あなた)、2段目=DUPR。名前がDUPRに押されて隠れないようにする */}
+                    <div className="min-w-0 flex-1">
+                      <div className="flex min-w-0 items-center gap-1.5">
+                        <span className="truncate text-sm font-bold">{m.name}</span>
+                        {isMe && (
+                          <span className="shrink-0 rounded-pill bg-[#E2F3EE] px-2 py-0.5 text-[10px] font-extrabold text-primary-dark">
+                            あなた
+                          </span>
+                        )}
+                      </div>
+                      {(m.dupr != null || m.duprSingles != null) && (
+                        // D/S を別々のピルにし、狭い画面ではピル単位で折り返す(ピル内では改行しない)
+                        <div
+                          className="mt-1 flex flex-wrap gap-1"
+                          title={`${m.duprPlayerId != null ? "DUPR連携済み(自動更新)" : "手入力"} D=ダブルス S=シングルス`}
+                        >
+                          {[
+                            ["D", m.dupr],
+                            ["S", m.duprSingles],
+                          ].map(([label, v]) =>
+                            v != null ? (
+                              <span
+                                key={label as string}
+                                className={`whitespace-nowrap rounded-pill px-2 py-0.5 text-[10px] font-extrabold ${
+                                  m.duprPlayerId != null
+                                    ? "bg-[#E2F3EE] text-primary-dark"
+                                    : "border border-line bg-bg text-muted"
+                                }`}
+                              >
+                                {label} {formatDupr(v as number)}
+                              </span>
+                            ) : null
+                          )}
+                        </div>
+                      )}
+                    </div>
+                    <span className="shrink-0 text-[13px] font-bold text-muted">
                       {m.joinCount}回
                     </span>
                     <button
