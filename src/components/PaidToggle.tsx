@@ -16,7 +16,7 @@ interface Props {
 
 /**
  * 参加者行のコート代支払いステータス。
- * - 本人: 「支払い完了」ボタン(押すと ✓支払済、もう一度押すと取り消し)
+ * - 本人: 「未払い／支払ったらタップ」ボタン(確認のうえ ✓支払済、もう一度押すと取り消し)
  * - 立替者: 他の人の分を「受取確認」/取り消しできる
  * - それ以外の人: ステータス表示のみ
  */
@@ -45,6 +45,9 @@ export function PaidToggle({ eventId, memberId, memberName, paidAt, payerId }: P
     if (!next) {
       const who = isMe ? "あなた" : `${memberName}さん`;
       if (!window.confirm(`${who}の支払い完了を取り消しますか？`)) return;
+    } else if (isMe) {
+      // 未払い表示のボタンなので、押し間違いで支払済にならないよう確認する
+      if (!window.confirm("コート代の支払いが済みましたか？\n「OK」で支払済にします")) return;
     }
     setBusy(true);
     setPaid(next);
@@ -83,12 +86,15 @@ export function PaidToggle({ eventId, memberId, memberName, paidAt, payerId }: P
 
   if (isMe) {
     return (
+      // 「支払い完了」だと済んだ状態に読めるため、今の状態(未払い)+操作の案内の2行にする
       <button
         onClick={toggle}
         disabled={busy}
-        className="shrink-0 rounded-pill border-2 border-primary bg-surface px-2.5 py-1 text-[11px] font-extrabold text-primary-dark disabled:opacity-60"
+        aria-label="未払い。支払ったらタップして支払済にする"
+        className="flex shrink-0 flex-col items-center rounded-xl border-2 border-amber bg-[#FFF6E5] px-2.5 py-1 leading-tight disabled:opacity-60"
       >
-        支払い完了
+        <span className="text-[11px] font-extrabold text-[#9A6B14]">未払い</span>
+        <span className="text-[9px] font-bold text-[#9A6B14]">支払ったらタップ</span>
       </button>
     );
   }
