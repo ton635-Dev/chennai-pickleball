@@ -1,18 +1,35 @@
 "use client";
 
-import { useCallback, useMemo, useState } from "react";
+import { useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import { useMember } from "./MemberProvider";
 import { saveMatch, setTieGameScore } from "@/app/actions";
 import {
   awardRally,
+  describeRally,
   initialState,
-  scoreCall,
   serveSide,
   type GameConfig,
   type GameState,
   type Team,
 } from "@/lib/scoring";
+
+/** 直前の操作の表示(タップが反映されたかを操作者が確認できるように) */
+interface Notice {
+  id: number;
+  text: string;
+  /** strong = サーバー交代など、スコアの数字がほぼ変わらない重要な変化 */
+  strong: boolean;
+}
+
+/** 端末の振動で操作を知らせる(Android等。非対応端末では何もしない) */
+const buzz = (pattern: number | number[]) => {
+  try {
+    navigator.vibrate?.(pattern);
+  } catch {
+    /* noop */
+  }
+};
 
 /** 大会(団体戦)のゲームを記録するモードの情報 */
 export interface TieContext {
@@ -41,6 +58,9 @@ export function Scoreboard({ mode, target, team1, team2, eventId, tie }: Props) 
 
   const [history, setHistory] = useState<GameState[]>([initialState(config)]);
   const state = history[history.length - 1];
+  // 試合開始時に「どちらのサーブから始めるか」を選ぶ
+  const [choosingServe, setChoosingServe] = useState(true);
+  const [notice, setNotice] = useState<Notice | null>(null);
 
   const names: [string[], string[]] = [
     team1.length ? team1 : ["チーム1"],
@@ -48,16 +68,48 @@ export function Scoreboard({ mode, target, team1, team2, eventId, tie }: Props) 
   ];
   const teamLabel = (t: Team) => names[t].join("・");
 
-  const tap = useCallback(
-    (team: Team) => {
-      if (state.finished) return;
-      const next = awardRally(state, config, team);
-      setHistory((h) => [...h, next]);
-    },
-    [state, config]
-  );
+  const show = (text: string, strong = false) =>
+    setNotice((n) => ({ id: (n?.id ?? 0) + 1, text, strong }));
 
-  const undo = () => setHistory((h) => (h.length > 1 ? h.slice(0, -1) : h));
+  const startWith = (team: Team) => {
+    setHistory([initialState(config, team)]);
+    setChoosingServe(false);
+    show(`${teamLabel(team)} のサーブから開始`);
+  };
+
+  const tap = (team: Team) => {
+    if (state.finished || choosingServe) return;
+    const next = awardRally(state, config, team);
+    setHistory((h) => [...h, next]);
+    const o = describeRally(state, next);
+    if (!o) return;
+    if (o.kind === "point") {
+      buzz(25);
+      show(`${teamLabel(o.team)} に1点`);
+    } else if (o.kind === "serverChange") {
+      // 数字は最後の1桁しか変わらないので、はっきり知らせる
+      buzz([40, 70, 40]);
+      show(`${teamLabel(o.team)}:2人目のサーブへ交代`, true);
+    } else if (o.kind === "sideOut") {
+      buzz(70);
+      show(`サイドアウト → ${teamLabel(o.team)} のサーブ`, true);
+    } else {
+      buzz([60, 60, 60, 60, 120]);
+    }
+  };
+
+  const undo = () => {
+    if (history.length <= 1) return;
+    setHistory((h) => h.slice(0, -1));
+    buzz(15);
+    show("↩ 1つ戻しました");
+  };
+
+  const replay = () => {
+    setHistory([initialState(config)]);
+    setNotice(null);
+    setChoosingServe(true);
+  };
 
   const endGame = () => {
     // 手動終了: 現在の得点で終了(勝者は多い方、同点なら勝者なし)
@@ -66,12 +118,13 @@ export function Scoreboard({ mode, target, team1, team2, eventId, tie }: Props) 
     setHistory((h) => [...h, { ...state, finished: true, winner }]);
   };
 
-  const call = scoreCall(state, config);
   const side = serveSide(state);
+  const serveKey = `${state.servingTeam}-${state.serverNumber}`;
 
   const modeLabel = mode === "doubles" ? "ダブルス" : "シングルス";
 
-  const Side = ({ team }: { team: Team }) => {
+  // 関数として呼ぶ(コンポーネントにすると毎回作り直されて強調表示が乱れるため)
+  const renderSide = (team: Team) => {
     const serving = state.servingTeam === team && !state.finished;
     return (
       <button
@@ -82,11 +135,38 @@ export function Scoreboard({ mode, target, team1, team2, eventId, tie }: Props) 
             : "border-white/10 bg-navy"
         }`}
       >
+        {/* サーバー交代・サイドアウトの直後はサーブ側の枠を光らせる */}
+        {serving && notice?.strong && (
+          <span
+            key={notice.id}
+            className="cpb-flash pointer-events-none absolute inset-0 rounded-[22px]"
+          />
+        )}
         {serving && (
           <>
-            <span className="absolute left-3.5 top-3.5 flex items-center gap-1.5 rounded-pill bg-accent px-3 py-1.5 text-xs font-extrabold text-navy">
-              <span className="h-2.5 w-2.5 rounded-full bg-navy" />
-              {mode === "doubles" ? `サーブ #${state.serverNumber}` : "サーブ"}
+            <span
+              key={serveKey}
+              className="cpb-pop absolute left-3.5 top-3.5 flex items-center gap-1.5 rounded-pill bg-accent px-3 py-1.5 text-xs font-extrabold text-navy"
+            >
+              {mode === "doubles" ? (
+                <>
+                  {/* ●○ = 1人目 / ●● = 2人目 */}
+                  <span className="flex gap-0.5">
+                    <span className="h-2.5 w-2.5 rounded-full bg-navy" />
+                    <span
+                      className={`h-2.5 w-2.5 rounded-full border-2 border-navy ${
+                        state.serverNumber === 2 ? "bg-navy" : ""
+                      }`}
+                    />
+                  </span>
+                  {state.serverNumber}人目のサーブ
+                </>
+              ) : (
+                <>
+                  <span className="h-2.5 w-2.5 rounded-full bg-navy" />
+                  サーブ
+                </>
+              )}
             </span>
             <span className="absolute right-3.5 top-3.5 flex gap-1">
               {(["left", "right"] as const).map((p) => (
@@ -144,23 +224,83 @@ export function Scoreboard({ mode, target, team1, team2, eventId, tie }: Props) 
       </div>
 
       {/* スコアコール */}
-      <div className="pb-3.5 pt-1.5 text-center">
+      <div className="pb-2 pt-1.5 text-center">
         <small className="block text-[11px] tracking-[0.2em] opacity-60">
           SCORE CALL
         </small>
         <b className="tabnum text-[34px] font-extrabold tracking-[0.06em] text-accent">
-          {call}
+          {state.scores[state.servingTeam]} - {state.scores[state.servingTeam === 0 ? 1 : 0]}
+          {mode === "doubles" && (
+            <>
+              {" - "}
+              {/* 変化が見落とされやすいサーバー番号は枠で目立たせ、変わった瞬間に強調 */}
+              <span
+                key={serveKey}
+                className="cpb-pop inline-block rounded-lg bg-accent px-2 text-navy2"
+              >
+                {state.serverNumber}
+              </span>
+            </>
+          )}
         </b>
+        {/* 直前の操作。タップが反映されたかをここで確認できる */}
+        <div className="mt-1 flex h-7 items-center justify-center gap-2">
+          {notice && !choosingServe && (
+            <span
+              key={notice.id}
+              className={`cpb-pop rounded-pill px-3 py-1 text-[12px] font-extrabold ${
+                notice.strong ? "bg-accent text-navy2" : "bg-white/10 text-white/85"
+              }`}
+            >
+              {notice.text}
+            </span>
+          )}
+          {/* 1球目の前なら最初のサーブ側を選び直せる */}
+          {history.length === 1 && !choosingServe && !state.finished && (
+            <button
+              onClick={() => setChoosingServe(true)}
+              className="rounded-pill border border-white/25 px-3 py-1 text-[12px] font-bold text-white/80"
+            >
+              サーブ側を変更
+            </button>
+          )}
+        </div>
       </div>
 
       {/* 2分割(縦: 上下 / 横: 左右) */}
       <div className="flex flex-1 flex-col landscape:flex-row">
-        <Side team={0} />
+        {renderSide(0)}
         <div className="py-2 text-center text-xs font-extrabold opacity-50 landscape:flex landscape:items-center">
           VS
         </div>
-        <Side team={1} />
+        {renderSide(1)}
       </div>
+
+      {/* 試合開始: 最初にサーブするチームを選ぶ */}
+      {choosingServe && !state.finished && (
+        <div className="fixed inset-0 z-40 flex items-center justify-center bg-black/60 p-5">
+          <div className="w-full max-w-xs rounded-card bg-surface p-5 text-center text-ink">
+            <div className="text-2xl">🏓</div>
+            <div className="mt-1 text-[17px] font-extrabold">最初のサーブはどちら？</div>
+            <p className="mt-1 text-[12px] text-muted">
+              {mode === "doubles"
+                ? "選んだチームの「0-0-2」から始まります"
+                : "選んだ側のサーブから始まります"}
+            </p>
+            <div className="mt-4 space-y-2">
+              {([0, 1] as const).map((t) => (
+                <button
+                  key={t}
+                  onClick={() => startWith(t)}
+                  className="btn-pill w-full bg-primary px-4 py-3.5 text-[15px] text-white"
+                >
+                  {teamLabel(t)}
+                </button>
+              ))}
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* フッター */}
       <div className="flex gap-2.5 px-3.5 pb-6 pt-4">
@@ -186,7 +326,7 @@ export function Scoreboard({ mode, target, team1, team2, eventId, tie }: Props) 
           winnerLabel={state.winner === null ? null : teamLabel(state.winner)}
           pair1={names[0].join("・")}
           pair2={names[1].join("・")}
-          onReplay={() => setHistory([initialState(config)])}
+          onReplay={replay}
           memberId={member?.id ?? null}
         />
       )}
@@ -195,7 +335,7 @@ export function Scoreboard({ mode, target, team1, team2, eventId, tie }: Props) 
         <FinishOverlay
           winnerLabel={state.winner === null ? null : teamLabel(state.winner)}
           scores={state.scores}
-          onReplay={() => setHistory([initialState(config)])}
+          onReplay={replay}
           onSave={async () => {
             await saveMatch(
               {
