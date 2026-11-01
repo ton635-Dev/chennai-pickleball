@@ -456,7 +456,10 @@ alter table matches add column if not exists tie_game_no int;
 -- 注意: ON CONFLICT で使うため、部分インデックス(WHERE句)にはしない。
 --       通常の試合は両カラムが NULL になるが、Postgres では NULL 同士は
 --       重複と見なされないため、複数行が共存できる。
-drop index if exists matches_tie_game_uniq;
+-- 注意: search_path に public も含むため、スキーマ名なしの drop は
+-- community2 に無いとき public 側を消してしまう(2026-08 にチェンナイの
+-- インデックスを誤って削除した)。必ず community2. を付ける。
+drop index if exists community2.matches_tie_game_uniq;
 create unique index if not exists matches_tie_game_uniq
   on matches (tie_match_id, tie_game_no);
 

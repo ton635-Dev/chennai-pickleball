@@ -22,6 +22,10 @@ export function ImportTournamentsButton() {
     setResult(null);
     try {
       const r = await importTournamentsToHistory(member?.id ?? null);
+      if (r.error) {
+        setError(r.error);
+        return;
+      }
       setResult(
         r.games === 0
           ? "取り込む結果がありませんでした"

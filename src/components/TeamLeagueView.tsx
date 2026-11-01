@@ -453,11 +453,18 @@ function TieResultDialog({
     setBusy(true);
     setError(null);
     try {
-      await setTieResult(match.id, games, member?.id ?? null);
+      const res = await setTieResult(match.id, games, member?.id ?? null);
+      if (res.error) {
+        setError(res.error);
+        setBusy(false);
+        return;
+      }
+      // 結果は保存済み・履歴への記録だけ失敗した場合は知らせてから閉じる
+      if (res.warning) window.alert(res.warning);
       onClose();
       router.refresh();
-    } catch (e) {
-      setError(e instanceof Error ? e.message : "保存に失敗しました");
+    } catch {
+      setError("通信に失敗しました。電波の良い場所で、もう一度保存してください");
       setBusy(false);
     }
   };
@@ -476,10 +483,15 @@ function TieResultDialog({
         s1: g.s1 != null && g.s2 != null ? g.s1 : null,
         s2: g.s1 != null && g.s2 != null ? g.s2 : null,
       }));
-      await setTieResult(match.id, pairsOnly, member?.id ?? null);
+      const res = await setTieResult(match.id, pairsOnly, member?.id ?? null);
+      if (res.error) {
+        setError(res.error);
+        setBusy(false);
+        return;
+      }
       router.push(`/scoreboard/play?tie=${match.id}&g=${gameNo}`);
-    } catch (e) {
-      setError(e instanceof Error ? e.message : "保存に失敗しました");
+    } catch {
+      setError("通信に失敗しました。電波の良い場所で、もう一度お試しください");
       setBusy(false);
     }
   };

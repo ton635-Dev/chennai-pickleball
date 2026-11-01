@@ -319,7 +319,7 @@ function TieFinishOverlay({
     setBusy(true);
     setError(null);
     try {
-      await setTieGameScore(
+      const res = await setTieGameScore(
         tie.matchId,
         tie.gameNo,
         scores[0],
@@ -328,10 +328,16 @@ function TieFinishOverlay({
         pairOrNull(pair2, tie.teamName2),
         memberId
       );
+      if (res.error) {
+        setError(res.error);
+        return false;
+      }
+      // スコアは保存済み・履歴への記録だけ失敗した場合は知らせて先へ進む
+      if (res.warning) window.alert(res.warning);
       setSaved(true);
       return true;
-    } catch (e) {
-      setError(e instanceof Error ? e.message : "保存に失敗しました");
+    } catch {
+      setError("通信に失敗しました。電波の良い場所で、もう一度保存してください");
       return false;
     } finally {
       setBusy(false);

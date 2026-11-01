@@ -43,11 +43,16 @@ export function MatchResultDialog({
     setBusy(true);
     setError(null);
     try {
-      await setTournamentMatchResult(matchId, n1, n2, member?.id ?? null);
+      const res = await setTournamentMatchResult(matchId, n1, n2, member?.id ?? null);
+      if (res.error) {
+        setError(res.error);
+        setBusy(false);
+        return;
+      }
       onClose();
       router.refresh();
-    } catch (e) {
-      setError(e instanceof Error ? e.message : "保存に失敗しました");
+    } catch {
+      setError("通信に失敗しました。電波の良い場所で、もう一度保存してください");
       setBusy(false);
     }
   };

@@ -968,6 +968,20 @@ export async function setTournamentMatchResult(
   score1: number,
   score2: number,
   memberId: string | null
+): Promise<SaveResult> {
+  try {
+    await setTournamentMatchResultInner(matchId, score1, score2, memberId);
+    return {};
+  } catch (e) {
+    return { error: errText(e) };
+  }
+}
+
+async function setTournamentMatchResultInner(
+  matchId: string,
+  score1: number,
+  score2: number,
+  memberId: string | null
 ) {
   const client = sb();
   const { data: m, error: me } = await client
@@ -984,10 +998,12 @@ export async function setTournamentMatchResult(
     score1 === score2 ? null : score1 > score2 ? match.entry1_id : match.entry2_id;
   if (!winner) throw new Error("引き分けは記録できません(2点差で決着)");
 
-  await client
+  // 保存失敗を見逃さないようエラーを確認する(以前は結果を確認していなかった)
+  const { error: ue } = await client
     .from("tournament_matches")
     .update({ score1, score2, winner_entry_id: winner, status: "done" })
     .eq("id", matchId);
+  if (ue) throw new Error(ue.message);
 
   const { data: t } = await client
     .from("tournaments")
@@ -1159,11 +1175,32 @@ async function syncTieToHistory(
   }
 }
 
+/**
+ * 大会の保存系アクションの戻り値。本番の Server Action は throw するとエラー文が
+ * 隠され英語の定型文になるため、エラーは返り値で伝える。
+ * warning = 結果は保存できたが付随処理(試合履歴への計上など)だけ失敗した
+ */
+export type SaveResult = { error?: string; warning?: string };
+
 export async function setTieResult(
   matchId: string,
   games: TieGame[],
   memberId: string | null
-) {
+): Promise<SaveResult> {
+  try {
+    const warning = await setTieResultInner(matchId, games, memberId);
+    return warning ? { warning } : {};
+  } catch (e) {
+    return { error: errText(e) };
+  }
+}
+
+/** 団体戦の結果保存の本体。戻り値は警告文(結果の保存自体は成功) */
+async function setTieResultInner(
+  matchId: string,
+  games: TieGame[],
+  memberId: string | null
+): Promise<string | undefined> {
   const client = sb();
   const { data: m, error: me } = await client
     .from("tournament_matches")
@@ -1258,19 +1295,33 @@ export async function setTieResult(
     }
   }
 
-  // 各ゲームを試合履歴へ計上
-  await syncTieToHistory(
-    matchId,
-    match.tournament_id,
-    match.entry1_id,
-    match.entry2_id,
-    clean,
-    memberId
-  );
+  // 各ゲームを試合履歴へ計上。大会の結果はこの時点で保存済みなので、
+  // ここが失敗しても「保存失敗」にはせず警告として返す
+  // (2026-11: 履歴側のインデックス欠落でここだけ失敗し、保存失敗に見えていた)
+  let warning: string | undefined;
+  try {
+    await syncTieToHistory(
+      matchId,
+      match.tournament_id,
+      match.entry1_id,
+      match.entry2_id,
+      clean,
+      memberId
+    );
+  } catch (e) {
+    warning = `結果は保存しました。ただし試合履歴への記録に失敗しました(${errText(e)})。あとで「試合履歴」画面の「過去の大会結果を取り込む」で追加できます`;
+  }
 
-  await log("tournament", match.tournament_id, memberId, "result", "対戦結果を入力");
+  await log(
+    "tournament",
+    match.tournament_id,
+    memberId,
+    "result",
+    warning ? "対戦結果を入力(履歴への計上は失敗)" : "対戦結果を入力"
+  );
   revalidatePath(`/tournaments/${match.tournament_id}`);
   revalidatePath("/tournaments");
+  return warning;
 }
 
 /** スコアボード起動用: 対戦1件の情報(チーム名・メンバー・設定)を取得 */
@@ -1335,14 +1386,14 @@ export async function setTieGameScore(
   pair1: string | null,
   pair2: string | null,
   memberId: string | null
-) {
+): Promise<SaveResult> {
   const client = sb();
   const { data: m } = await client
     .from("tournament_matches")
     .select("games, tournament_id")
     .eq("id", matchId)
     .maybeSingle();
-  if (!m) throw new Error("試合が見つかりません");
+  if (!m) return { error: "試合が見つかりません" };
   const { data: t } = await client
     .from("tournaments")
     .select("games_per_tie")
@@ -1372,7 +1423,7 @@ export async function setTieGameScore(
     };
   });
 
-  await setTieResult(matchId, merged, memberId);
+  return setTieResult(matchId, merged, memberId);
 }
 
 /**
@@ -1380,6 +1431,16 @@ export async function setTieGameScore(
  * すでに計上済みのゲームは上書きされるだけなので、何度実行しても重複しない。
  */
 export async function importTournamentsToHistory(
+  memberId: string | null
+): Promise<{ tournaments: number; games: number; error?: string }> {
+  try {
+    return await importTournamentsToHistoryInner(memberId);
+  } catch (e) {
+    return { tournaments: 0, games: 0, error: errText(e) };
+  }
+}
+
+async function importTournamentsToHistoryInner(
   memberId: string | null
 ): Promise<{ tournaments: number; games: number }> {
   const client = sb();
