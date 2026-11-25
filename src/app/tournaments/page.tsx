@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { getTournaments } from "@/lib/data";
 import { EmptyState } from "@/components/bits";
+import { TournamentTabs } from "@/components/BoardBits";
 import type { TournamentSummary } from "@/lib/data";
 
 export const dynamic = "force-dynamic";
@@ -54,8 +55,10 @@ export default async function TournamentsPage() {
 
   return (
     <div className="mx-auto w-full max-w-2xl pt-1">
+      <h1 className="mb-3 text-[22px] font-extrabold">大会</h1>
+      <TournamentTabs active="tournaments" />
       <div className="mb-4 flex items-center justify-between">
-        <h1 className="text-[22px] font-extrabold">大会</h1>
+        <h2 className="text-sm font-extrabold text-muted">サークル内の大会</h2>
         <Link
           href="/tournaments/new"
           className="btn-pill bg-primary px-5 py-2.5 text-sm text-white"

@@ -1,5 +1,6 @@
 import Link from "next/link";
 import {
+  getBoardPosts,
   getEventsWithAttendance,
   getRecentMatches,
 } from "@/lib/data";
@@ -16,6 +17,8 @@ import { RsvpControl } from "@/components/RsvpControl";
 import { ShareButton } from "@/components/ShareButton";
 import { MyRsvpChip } from "@/components/MyRsvpChip";
 import { Avatar, EmptyState } from "@/components/bits";
+import { BoardPostCard } from "@/components/BoardBits";
+import { deadlineBadge } from "@/lib/board";
 import type { AttendanceStatus, EventWithAttendance } from "@/lib/types";
 
 export const dynamic = "force-dynamic";
@@ -27,10 +30,13 @@ function statusMap(ev: EventWithAttendance): Record<string, AttendanceStatus> {
 }
 
 export default async function HomePage() {
-  const [events, recent] = await Promise.all([
+  const [events, recent, boardPosts] = await Promise.all([
     getEventsWithAttendance(),
     getRecentMatches(3),
+    getBoardPosts({ limit: 2 }),
   ]);
+  // 申込締切が近い投稿があればカードの枠で目立たせる
+  const boardUrgent = boardPosts.some((p) => deadlineBadge(p.entry_deadline)?.urgent);
   const appUrl = getAppUrl();
 
   const upcoming = events.filter((e) => isUpcoming(e.event_date));
@@ -131,6 +137,21 @@ export default async function HomePage() {
         >
           ＋ 活動日を作成
         </Link>
+
+        {/* 近日の大会・イベント(掲示板) */}
+        {boardPosts.length > 0 && (
+          <div className={`card mb-3 p-4 ${boardUrgent ? "border-amber" : ""}`}>
+            <div className="mb-1 flex items-center justify-between">
+              <h2 className="text-sm font-extrabold text-muted">近日の大会・イベント</h2>
+              <Link href="/tournaments/board" className="text-xs font-bold text-primary">
+                すべて見る
+              </Link>
+            </div>
+            {boardPosts.map((p) => (
+              <BoardPostCard key={p.id} post={p} compact />
+            ))}
+          </div>
+        )}
 
         {/* 今後の予定 */}
         <div className="card mb-3 p-4">

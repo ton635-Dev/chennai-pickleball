@@ -212,3 +212,60 @@ export interface MatchRow {
   created_by: string | null;
   created_at: string;
 }
+
+// ---------------------------------------------------------------------
+// 大会・イベント掲示板
+// ---------------------------------------------------------------------
+export type BoardKind = "external" | "circle" | "other";
+/** md=男子ダブルス / wd=女子ダブルス / mx=混合 / singles=シングルス */
+export type BoardCategory = "md" | "wd" | "mx" | "singles";
+/** going=出場(参加)予定 / seeking=ペア探し中 / interested=興味あり */
+export type BoardStatus = "going" | "seeking" | "interested";
+
+export interface BoardPost {
+  id: string;
+  kind: BoardKind;
+  title: string;
+  start_date: string; // YYYY-MM-DD
+  end_date: string | null;
+  start_time: string | null;
+  end_time: string | null;
+  place_name: string | null;
+  maps_url: string | null;
+  url: string | null;
+  entry_deadline: string | null; // YYYY-MM-DD
+  categories: BoardCategory[];
+  level: string | null;
+  fee: string | null;
+  note: string | null;
+  image_url: string | null;
+  image_path: string | null;
+  created_by: string | null;
+  archived: boolean;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface BoardResponse {
+  id: string;
+  post_id: string;
+  member_id: string;
+  status: BoardStatus;
+  category: BoardCategory | null;
+  comment: string | null;
+  partner_member_id: string | null;
+  updated_at: string;
+  member: { id: string; name: string; dupr: number | null; dupr_singles: number | null };
+}
+
+/** 一覧用: 投稿 + 表明の集計 */
+export interface BoardPostSummary extends BoardPost {
+  counts: Record<BoardStatus, number>;
+  authorName: string | null;
+}
+
+/** 詳細用: 投稿 + 表明一覧 */
+export interface BoardPostDetail extends BoardPost {
+  responses: BoardResponse[];
+  authorName: string | null;
+}

@@ -4,6 +4,9 @@ import { revalidatePath } from "next/cache";
 import { getServerSupabase } from "@/lib/supabase/server";
 import type {
   AttendanceStatus,
+  BoardCategory,
+  BoardKind,
+  BoardStatus,
   TournamentEntry,
   TournamentFormat,
   TournamentMatch,
@@ -1500,4 +1503,357 @@ export async function archiveTournament(id: string, memberId: string | null) {
   if (error) throw new Error(error.message);
   await log("tournament", id, memberId, "archive", "大会をアーカイブ");
   revalidatePath("/tournaments");
+}
+
+// ---------------------------------------------------------------------
+// 大会・イベント掲示板(誰でも投稿・編集・削除可。変更は監査ログに記録)
+// ---------------------------------------------------------------------
+export interface BoardPostInput {
+  kind: BoardKind;
+  title: string;
+  start_date: string;
+  end_date: string | null;
+  start_time: string | null;
+  end_time: string | null;
+  place_name: string | null;
+  maps_url: string | null;
+  url: string | null;
+  entry_deadline: string | null;
+  categories: BoardCategory[];
+  level: string | null;
+  fee: string | null;
+  note: string | null;
+  image_url: string | null;
+  image_path: string | null;
+}
+
+const BOARD_KINDS: BoardKind[] = ["external", "circle", "other"];
+const BOARD_CATEGORIES: BoardCategory[] = ["md", "wd", "mx", "singles"];
+const isHttpUrl = (s: string) => /^https?:\/\//i.test(s);
+
+/** 入力の正規化と検証。問題があればエラー文を返す */
+function cleanBoardInput(input: BoardPostInput): { row?: BoardPostInput; error?: string } {
+  const t = (s: string | null | undefined) => (s ?? "").trim() || null;
+  const title = (input.title ?? "").trim();
+  if (!title) return { error: "タイトルを入力してください" };
+  if (!input.start_date) return { error: "開催日を入力してください" };
+  const end = input.end_date && input.end_date !== input.start_date ? input.end_date : null;
+  if (end && end < input.start_date) return { error: "終了日は開始日以降にしてください" };
+  const url = t(input.url);
+  if (url && !isHttpUrl(url))
+    return { error: "大会URLは http:// か https:// で始まるURLを入力してください" };
+  const maps = t(input.maps_url);
+  if (maps && !isHttpUrl(maps))
+    return { error: "地図リンクは http:// か https:// で始まるURLを入力してください" };
+  return {
+    row: {
+      kind: BOARD_KINDS.includes(input.kind) ? input.kind : "external",
+      title: title.slice(0, 120),
+      start_date: input.start_date,
+      end_date: end,
+      start_time: t(input.start_time),
+      end_time: t(input.end_time),
+      place_name: t(input.place_name),
+      maps_url: maps,
+      url,
+      entry_deadline: t(input.entry_deadline),
+      categories: (input.categories ?? []).filter((c) => BOARD_CATEGORIES.includes(c)),
+      level: t(input.level),
+      fee: t(input.fee),
+      note: t(input.note),
+      image_url: t(input.image_url),
+      image_path: t(input.image_path),
+    },
+  };
+}
+
+function revalidateBoard(id?: string) {
+  revalidatePath("/");
+  revalidatePath("/tournaments/board");
+  if (id) revalidatePath(`/tournaments/board/${id}`);
+}
+
+export async function createBoardPost(
+  input: BoardPostInput,
+  actorId: string | null,
+  /** 投稿と同時に自分を「ペア探し中」にする */
+  seekingSelf = false
+): Promise<{ id?: string; error?: string }> {
+  try {
+    const { row, error } = cleanBoardInput(input);
+    if (!row) return { error };
+    const { data, error: e } = await sb()
+      .from("board_posts")
+      .insert({ ...row, created_by: actorId })
+      .select("id")
+      .single();
+    if (e) throw new Error(e.message);
+    const id = (data as { id: string }).id;
+    if (seekingSelf && actorId) {
+      await sb().from("board_responses").upsert(
+        {
+          post_id: id,
+          member_id: actorId,
+          status: "seeking",
+          updated_at: new Date().toISOString(),
+        },
+        { onConflict: "post_id,member_id" }
+      );
+    }
+    await log("board", id, actorId, "create", `掲示板に投稿: ${row.title}`);
+    revalidateBoard(id);
+    return { id };
+  } catch (e) {
+    return { error: errText(e) };
+  }
+}
+
+export async function updateBoardPost(
+  id: string,
+  input: BoardPostInput,
+  actorId: string | null
+): Promise<{ error?: string }> {
+  try {
+    const { row, error } = cleanBoardInput(input);
+    if (!row) return { error };
+    const { error: e } = await sb()
+      .from("board_posts")
+      .update({ ...row, updated_at: new Date().toISOString() })
+      .eq("id", id);
+    if (e) throw new Error(e.message);
+    await log("board", id, actorId, "update", `掲示板の投稿を編集: ${row.title}`);
+    revalidateBoard(id);
+    return {};
+  } catch (e) {
+    return { error: errText(e) };
+  }
+}
+
+/** 投稿の削除(アーカイブ。表明などのデータは残る) */
+export async function archiveBoardPost(
+  id: string,
+  actorId: string | null
+): Promise<{ error?: string }> {
+  try {
+    const { error } = await sb()
+      .from("board_posts")
+      .update({ archived: true, updated_at: new Date().toISOString() })
+      .eq("id", id);
+    if (error) throw new Error(error.message);
+    await log("board", id, actorId, "archive", "掲示板の投稿を削除");
+    revalidateBoard(id);
+    return {};
+  } catch (e) {
+    return { error: errText(e) };
+  }
+}
+
+/** 同じ開催日の投稿(重複投稿の注意用) */
+export async function findBoardPostsOnDate(
+  date: string,
+  excludeId: string | null
+): Promise<{ id: string; title: string }[]> {
+  if (!date) return [];
+  try {
+    let q = sb()
+      .from("board_posts")
+      .select("id, title")
+      .eq("archived", false)
+      .eq("start_date", date);
+    if (excludeId) q = q.neq("id", excludeId);
+    const { data } = await q;
+    return (data as { id: string; title: string }[]) ?? [];
+  } catch {
+    return [];
+  }
+}
+
+/**
+ * 自分の状況を表明・変更・取り消し(status=null)。
+ * ペアが決まっていた人が出場予定以外に変えた・取り消した場合は、
+ * 相手側のペア情報も外す(相手は出場予定のまま)
+ */
+export async function setBoardResponse(
+  postId: string,
+  memberId: string,
+  status: BoardStatus | null,
+  category: BoardCategory | null,
+  comment: string | null
+): Promise<{ error?: string }> {
+  try {
+    const client = sb();
+    const { data: prev } = await client
+      .from("board_responses")
+      .select("partner_member_id")
+      .eq("post_id", postId)
+      .eq("member_id", memberId)
+      .maybeSingle();
+    const partner = (prev as { partner_member_id: string | null } | null)?.partner_member_id;
+    const keepPartner = status === "going";
+    if (partner && !keepPartner) {
+      await client
+        .from("board_responses")
+        .update({ partner_member_id: null })
+        .eq("post_id", postId)
+        .eq("member_id", partner);
+    }
+    if (status === null) {
+      const { error } = await client
+        .from("board_responses")
+        .delete()
+        .eq("post_id", postId)
+        .eq("member_id", memberId);
+      if (error) throw new Error(error.message);
+    } else {
+      const { error } = await client.from("board_responses").upsert(
+        {
+          post_id: postId,
+          member_id: memberId,
+          status,
+          category: category && BOARD_CATEGORIES.includes(category) ? category : null,
+          comment: (comment ?? "").trim().slice(0, 100) || null,
+          partner_member_id: keepPartner ? partner ?? null : null,
+          updated_at: new Date().toISOString(),
+        },
+        { onConflict: "post_id,member_id" }
+      );
+      if (error) throw new Error(error.message);
+    }
+    await log(
+      "board",
+      postId,
+      memberId,
+      "respond",
+      status === null ? "表明を取り消し" : `表明: ${status}`
+    );
+    revalidateBoard(postId);
+    return {};
+  } catch (e) {
+    return { error: errText(e) };
+  }
+}
+
+/** ペアが決まった: 自分と相手の両方を「出場予定」にして、互いをペアとして記録 */
+export async function setBoardPair(
+  postId: string,
+  memberId: string,
+  partnerId: string
+): Promise<{ error?: string }> {
+  try {
+    if (memberId === partnerId) return { error: "自分以外の人を選んでください" };
+    const client = sb();
+    const { data: rows } = await client
+      .from("board_responses")
+      .select("member_id, category, comment, partner_member_id")
+      .eq("post_id", postId)
+      .in("member_id", [memberId, partnerId]);
+    type Row = {
+      member_id: string;
+      category: BoardCategory | null;
+      comment: string | null;
+      partner_member_id: string | null;
+    };
+    const list = (rows as Row[]) ?? [];
+    const me = list.find((r) => r.member_id === memberId);
+    const them = list.find((r) => r.member_id === partnerId);
+    // それぞれの以前のペアがいれば外す
+    const oldPartners = [me?.partner_member_id, them?.partner_member_id].filter(
+      (x): x is string => !!x && x !== memberId && x !== partnerId
+    );
+    if (oldPartners.length) {
+      await client
+        .from("board_responses")
+        .update({ partner_member_id: null })
+        .eq("post_id", postId)
+        .in("member_id", oldPartners);
+    }
+    const category = me?.category ?? them?.category ?? null;
+    const now = new Date().toISOString();
+    const { error } = await client.from("board_responses").upsert(
+      [
+        {
+          post_id: postId,
+          member_id: memberId,
+          status: "going",
+          category,
+          comment: me?.comment ?? null,
+          partner_member_id: partnerId,
+          updated_at: now,
+        },
+        {
+          post_id: postId,
+          member_id: partnerId,
+          status: "going",
+          category: them?.category ?? category,
+          comment: them?.comment ?? null,
+          partner_member_id: memberId,
+          updated_at: now,
+        },
+      ],
+      { onConflict: "post_id,member_id" }
+    );
+    if (error) throw new Error(error.message);
+    await log("board", postId, memberId, "pair", "ペアが決まった");
+    revalidateBoard(postId);
+    return {};
+  } catch (e) {
+    return { error: errText(e) };
+  }
+}
+
+/**
+ * 大会URLからタイトル・説明を取り込む(投稿フォームの補助)。
+ * 投稿者が押したときにそのページを1回だけ読み、OGP/タイトルを使う。
+ * 取れなければエラー文を返し、手入力で続けてもらう
+ */
+export async function fetchBoardUrlPreview(
+  url: string
+): Promise<{ title?: string; description?: string; error?: string }> {
+  const target = url.trim();
+  if (!isHttpUrl(target)) return { error: "URLを確認してください" };
+  try {
+    const ctrl = new AbortController();
+    const timer = setTimeout(() => ctrl.abort(), 6000);
+    const res = await fetch(target, {
+      signal: ctrl.signal,
+      headers: { Accept: "text/html" },
+      redirect: "follow",
+      cache: "no-store",
+    });
+    clearTimeout(timer);
+    if (!res.ok) return { error: `ページを読み込めませんでした(${res.status})` };
+    const html = (await res.text()).slice(0, 300_000);
+    const meta = (prop: string) => {
+      for (const tag of html.match(/<meta\b[^>]*>/gi) ?? []) {
+        const key = tag.match(/\b(?:property|name)\s*=\s*["']([^"']+)["']/i)?.[1];
+        if (key?.toLowerCase() === prop) {
+          return tag.match(/\bcontent\s*=\s*["']([^"']*)["']/i)?.[1]?.trim() ?? "";
+        }
+      }
+      return "";
+    };
+    const decode = (s: string) =>
+      s
+        .replace(/&amp;/g, "&")
+        .replace(/&quot;/g, '"')
+        .replace(/&#39;|&apos;/g, "'")
+        .replace(/&lt;/g, "<")
+        .replace(/&gt;/g, ">")
+        .replace(/\s+/g, " ")
+        .trim();
+    const title =
+      meta("og:title") ||
+      meta("twitter:title") ||
+      (html.match(/<title[^>]*>([^<]*)<\/title>/i)?.[1] ?? "");
+    const description = meta("og:description") || meta("description");
+    if (!title && !description) {
+      return { error: "このページからは情報を取得できませんでした。手入力してください" };
+    }
+    return {
+      title: decode(title).slice(0, 120) || undefined,
+      description: decode(description).slice(0, 400) || undefined,
+    };
+  } catch {
+    return { error: "ページを読み込めませんでした。手入力してください" };
+  }
 }

@@ -3,6 +3,11 @@ import { getServerSupabase } from "./supabase/server";
 import type {
   AttendanceStatus,
   AttendanceWithMember,
+  BoardPost,
+  BoardPostDetail,
+  BoardPostSummary,
+  BoardResponse,
+  BoardStatus,
   CourtPhoto,
   CourtReviewWithMember,
   CourtRow,
@@ -19,6 +24,7 @@ import type {
   TournamentMatch,
 } from "./types";
 import { isUpcoming } from "./format";
+import { todayStr } from "./board";
 
 function emptyCounts(): Record<AttendanceStatus, number> {
   return { join: 0, maybe: 0, no: 0 };
@@ -463,5 +469,78 @@ export async function getTournamentDetail(
     tournament: t as Tournament,
     entries: (entries as TournamentEntry[]) ?? [],
     matches: (matches as TournamentMatch[]) ?? [],
+  };
+}
+
+// ---------------------------------------------------------------------
+// 大会・イベント掲示板
+// ---------------------------------------------------------------------
+
+/** 掲示板の一覧。past=false: 開催前・開催中(開始日の近い順) / true: 終了分(新しい順) */
+export async function getBoardPosts(opts: {
+  past?: boolean;
+  limit?: number;
+} = {}): Promise<BoardPostSummary[]> {
+  const sb = getServerSupabase();
+  if (!sb) return [];
+  const { data } = await sb
+    .from("board_posts")
+    .select("*, author:members!board_posts_created_by_fkey(name)")
+    .eq("archived", false)
+    .order("start_date", { ascending: true });
+  const today = todayStr();
+  let posts = ((data as (BoardPost & { author: { name: string } | null })[]) ?? []).filter(
+    (p) => ((p.end_date ?? p.start_date) >= today) === !opts.past
+  );
+  if (opts.past) posts = posts.reverse();
+  if (opts.limit) posts = posts.slice(0, opts.limit);
+  if (posts.length === 0) return [];
+
+  const { data: rs } = await sb
+    .from("board_responses")
+    .select("post_id, status")
+    .in(
+      "post_id",
+      posts.map((p) => p.id)
+    );
+  const counts = new Map<string, Record<BoardStatus, number>>();
+  for (const r of (rs as { post_id: string; status: BoardStatus }[]) ?? []) {
+    const c = counts.get(r.post_id) ?? { going: 0, seeking: 0, interested: 0 };
+    c[r.status] += 1;
+    counts.set(r.post_id, c);
+  }
+  return posts.map(({ author, ...p }) => ({
+    ...p,
+    categories: p.categories ?? [],
+    authorName: author?.name ?? null,
+    counts: counts.get(p.id) ?? { going: 0, seeking: 0, interested: 0 },
+  }));
+}
+
+/** 掲示板の投稿1件(表明一覧つき) */
+export async function getBoardPost(id: string): Promise<BoardPostDetail | null> {
+  const sb = getServerSupabase();
+  if (!sb) return null;
+  const [{ data: post }, { data: rs }] = await Promise.all([
+    sb
+      .from("board_posts")
+      .select("*, author:members!board_posts_created_by_fkey(name)")
+      .eq("id", id)
+      .maybeSingle(),
+    sb
+      .from("board_responses")
+      .select(
+        "*, member:members!board_responses_member_id_fkey(id, name, dupr, dupr_singles)"
+      )
+      .eq("post_id", id)
+      .order("updated_at", { ascending: true }),
+  ]);
+  if (!post) return null;
+  const { author, ...p } = post as BoardPost & { author: { name: string } | null };
+  return {
+    ...p,
+    categories: p.categories ?? [],
+    authorName: author?.name ?? null,
+    responses: ((rs as BoardResponse[]) ?? []).filter((r) => r.member),
   };
 }
