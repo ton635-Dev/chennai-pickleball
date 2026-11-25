@@ -2,6 +2,7 @@
 
 import { revalidatePath } from "next/cache";
 import { getServerSupabase } from "@/lib/supabase/server";
+import { parseBoardImport, type BoardImport } from "@/lib/board-import";
 import type {
   AttendanceStatus,
   BoardCategory,
@@ -1802,57 +1803,30 @@ export async function setBoardPair(
 }
 
 /**
- * 大会URLからタイトル・説明を取り込む(投稿フォームの補助)。
- * 投稿者が押したときにそのページを1回だけ読み、OGP/タイトルを使う。
- * 取れなければエラー文を返し、手入力で続けてもらう
+ * 大会URLから投稿フォームの項目を取り込む(投稿フォームの補助)。
+ * 投稿者が押したときにそのページを1回だけ読む。TurfTownは日時・会場・地図・種目・
+ * DUPR条件まで、その他のサイトはタイトルと説明が中心。取れなければエラー文を返す
  */
 export async function fetchBoardUrlPreview(
   url: string
-): Promise<{ title?: string; description?: string; error?: string }> {
+): Promise<{ data?: BoardImport; error?: string }> {
   const target = url.trim();
   if (!isHttpUrl(target)) return { error: "URLを確認してください" };
   try {
     const ctrl = new AbortController();
-    const timer = setTimeout(() => ctrl.abort(), 6000);
+    const timer = setTimeout(() => ctrl.abort(), 8000);
     const res = await fetch(target, {
       signal: ctrl.signal,
-      headers: { Accept: "text/html" },
+      headers: { Accept: "text/html", "User-Agent": "Mozilla/5.0 (compatible; PickleballBoard/1.0)" },
       redirect: "follow",
       cache: "no-store",
     });
     clearTimeout(timer);
     if (!res.ok) return { error: `ページを読み込めませんでした(${res.status})` };
-    const html = (await res.text()).slice(0, 300_000);
-    const meta = (prop: string) => {
-      for (const tag of html.match(/<meta\b[^>]*>/gi) ?? []) {
-        const key = tag.match(/\b(?:property|name)\s*=\s*["']([^"']+)["']/i)?.[1];
-        if (key?.toLowerCase() === prop) {
-          return tag.match(/\bcontent\s*=\s*["']([^"']*)["']/i)?.[1]?.trim() ?? "";
-        }
-      }
-      return "";
-    };
-    const decode = (s: string) =>
-      s
-        .replace(/&amp;/g, "&")
-        .replace(/&quot;/g, '"')
-        .replace(/&#39;|&apos;/g, "'")
-        .replace(/&lt;/g, "<")
-        .replace(/&gt;/g, ">")
-        .replace(/\s+/g, " ")
-        .trim();
-    const title =
-      meta("og:title") ||
-      meta("twitter:title") ||
-      (html.match(/<title[^>]*>([^<]*)<\/title>/i)?.[1] ?? "");
-    const description = meta("og:description") || meta("description");
-    if (!title && !description) {
-      return { error: "このページからは情報を取得できませんでした。手入力してください" };
-    }
-    return {
-      title: decode(title).slice(0, 120) || undefined,
-      description: decode(description).slice(0, 400) || undefined,
-    };
+    const html = (await res.text()).slice(0, 2_000_000);
+    const data = parseBoardImport(html);
+    if (!data) return { error: "このページからは情報を取得できませんでした。手入力してください" };
+    return { data };
   } catch {
     return { error: "ページを読み込めませんでした。手入力してください" };
   }

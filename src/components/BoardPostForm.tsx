@@ -94,16 +94,31 @@ export function BoardPostForm({ post }: { post?: BoardPost }) {
     setFetchMsg(null);
     try {
       const res = await fetchBoardUrlPreview(url);
-      if (res.error) {
-        setFetchMsg(res.error);
+      if (res.error || !res.data) {
+        setFetchMsg(res.error ?? "取り込める情報がありませんでした");
         return;
       }
-      if (res.title && !title.trim()) setTitle(res.title);
-      if (res.description && !note.trim()) setNote(res.description);
+      // ボタンを押して取り込んだ項目は、入力済みでも上書きする(前回の取り込み結果の修正も兼ねる)
+      const d = res.data;
+      const filled: string[] = [];
+      if (d.title) (setTitle(d.title), filled.push("タイトル"));
+      if (d.start_date) {
+        setStartDate(d.start_date);
+        setEndDate(d.end_date ?? "");
+        filled.push("開催日");
+      }
+      if (d.start_time) {
+        setStartTime(d.start_time);
+        setEndTime(d.end_time ?? "");
+        filled.push("時刻");
+      }
+      if (d.place_name) (setPlace(d.place_name), filled.push("場所"));
+      if (d.maps_url) (setMaps(d.maps_url), filled.push("地図"));
+      if (d.categories?.length) (setCategories(d.categories), filled.push("種目"));
+      if (d.level) (setLevel(d.level), filled.push("レベル帯"));
+      if (d.note) (setNote(d.note), filled.push("メモ"));
       setFetchMsg(
-        res.title || res.description
-          ? "ページの情報を取り込みました。日付などは確認して入力してください"
-          : "取り込める情報がありませんでした"
+        `取り込みました: ${filled.join("・")}。内容を確認し、足りない項目(申込締切・参加費など)を入力してください`
       );
     } catch {
       setFetchMsg("ページを読み込めませんでした。手入力してください");
