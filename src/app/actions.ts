@@ -191,7 +191,7 @@ export async function unlinkMemberDupr(
 /** 連携済み全メンバーのレーティングをDUPRから再取得 */
 export async function refreshDuprRatings(
   actorId: string | null
-): Promise<{ total: number; updated: number; error?: string }> {
+): Promise<{ total: number; updated: number; failed?: number; error?: string }> {
   try {
     return await refreshDuprRatingsInner(actorId);
   } catch (e) {
@@ -200,8 +200,10 @@ export async function refreshDuprRatings(
 }
 
 async function refreshDuprRatingsInner(actorId: string | null) {
-  const { getDuprPlayer, duprConfigured } = await import("@/lib/dupr");
+  const { getDuprPlayer, duprConfigured, keepDuprSessionAlive } = await import("@/lib/dupr");
   if (!duprConfigured()) throw new Error("DUPR連携が設定されていません");
+  // 連携者がいなくても、毎日ログインを更新して切れないようにする(切れていれば要認証に戻る)
+  await keepDuprSessionAlive();
   const { data, error } = await sb()
     .from("members")
     .select("id, name, dupr, dupr_singles, dupr_player_id")
@@ -215,9 +217,14 @@ async function refreshDuprRatingsInner(actorId: string | null) {
     dupr_player_id: number;
   }[];
   let updated = 0;
+  let failed = 0;
   for (const m of rows) {
+    // ログインが無効なら getDuprPlayer が例外を投げ、一括更新全体をエラーにする
     const p = await getDuprPlayer(m.dupr_player_id);
-    if (!p) continue; // 一時的な取得失敗はスキップ(既存値を保持)
+    if (!p) {
+      failed++; // 一時的な取得失敗はスキップ(既存値を保持)
+      continue;
+    }
     await sb()
       .from("members")
       .update({
@@ -234,11 +241,11 @@ async function refreshDuprRatingsInner(actorId: string | null) {
       null,
       actorId,
       "dupr",
-      `DUPRを一括更新(対象${rows.length}名・変動${updated}名)`
+      `DUPRを一括更新(対象${rows.length}名・変動${updated}名${failed ? `・取得失敗${failed}名` : ""})`
     );
   }
   revalidatePath("/more");
-  return { total: rows.length, updated };
+  return { total: rows.length, updated, failed };
 }
 
 /** DUPR認証(メール2段階認証)を開始: パスワードでログインし、メールに6桁コードを送らせる */

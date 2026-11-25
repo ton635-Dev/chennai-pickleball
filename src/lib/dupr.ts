@@ -223,20 +223,38 @@ async function establishFromRefreshToken(refreshToken: string): Promise<void> {
   cache.blockedUntil = undefined;
 }
 
-async function getToken(): Promise<string> {
+/**
+ * DUPRにログインが無効と言われたとき: 保存済みトークンを消して「要認証」に戻す。
+ * (以前はトークンを残したため、画面は「認証済み」のまま検索だけ失敗していた)
+ */
+async function markNeedsReauth(): Promise<never> {
+  cache.token = undefined;
+  try {
+    await saveAuth({});
+  } catch {
+    /* 保存に失敗しても再認証の案内は出す */
+  }
+  throw new Error(DUPR_REAUTH_MESSAGE);
+}
+
+/** 保存から7日たったトークンは、期限前でも更新してログインを新しく保つ */
+const PROACTIVE_REFRESH_MS = 7 * 24 * 60 * 60 * 1000;
+
+async function getToken(opts: { forceRefresh?: boolean } = {}): Promise<string> {
   const now = Date.now();
-  if (cache.token && now < cache.token.expiresAt) return cache.token.value;
+  if (!opts.forceRefresh && cache.token && now < cache.token.expiresAt) return cache.token.value;
   if (cache.blockedUntil && now < cache.blockedUntil) {
     throw new Error(
       "DUPRへの接続が一時的に制限されています。1分ほどおいてもう一度お試しください"
     );
   }
   const auth = await loadAuth();
-  // 保存済みアクセストークンがまだ有効ならそれを使う
-  if (auth.accessToken) {
+  // 保存済みアクセストークンがまだ有効で新しければそれを使う
+  const fresh = auth.savedAt && now - new Date(auth.savedAt).getTime() < PROACTIVE_REFRESH_MS;
+  if (!opts.forceRefresh && auth.accessToken && fresh) {
     const exp = jwtExp(auth.accessToken);
     if (exp && exp - 60_000 > now) {
-      cache.token = { value: auth.accessToken, expiresAt: exp - 60_000 };
+      cache.token = { value: auth.accessToken, expiresAt: Math.min(exp - 60_000, now + 3600_000) };
       return auth.accessToken;
     }
   }
@@ -254,15 +272,41 @@ async function getToken(): Promise<string> {
       );
     }
     // refreshToken が失効・無効化された → メールコードで再認証
-    throw new Error(DUPR_REAUTH_MESSAGE);
+    return markNeedsReauth();
   }
   await saveAuth({
     accessToken: token,
     refreshToken: result?.refreshToken ?? auth.refreshToken,
   });
   const exp = jwtExp(token) ?? now + 50 * 60_000;
-  cache.token = { value: token, expiresAt: exp - 60_000 };
+  cache.token = { value: token, expiresAt: Math.min(exp - 60_000, now + 3600_000) };
   return token;
+}
+
+/**
+ * ログインが必要なDUPR APIの呼び出し。401(Invalid token / Session expired)なら
+ * 一度だけトークンを更新して再試行し、それでも駄目なら「要認証」に戻す
+ */
+async function authedFetch(url: string, init: RequestInit = {}) {
+  const call = (token: string) =>
+    fetchJson(url, { ...init, headers: { ...(init.headers ?? {}), ...authHeaders(token) } });
+  let r = await call(await getToken());
+  if (r.res.status === 401) {
+    cache.token = undefined;
+    r = await call(await getToken({ forceRefresh: true }));
+    if (r.res.status === 401) return markNeedsReauth();
+  }
+  return r;
+}
+
+/**
+ * 毎日の自動更新から呼ぶ: 連携者がいなくてもログインを維持する(トークンの定期更新)。
+ * 認証していなければ何もしない。無効になっていれば「要認証」に戻す
+ */
+export async function keepDuprSessionAlive(): Promise<void> {
+  const auth = await loadAuth();
+  if (!auth.refreshToken) return;
+  await authedFetch(`${BASE}/user/v1.0/profile`);
 }
 
 // ---------------------------------------------------------------------
@@ -371,13 +415,9 @@ function parsePlayer(d: any): DuprPlayer {
 
 /** 名前(またはDUPR ID)でプレイヤーを検索 */
 export async function searchDuprPlayers(query: string): Promise<DuprPlayer[]> {
-  const token = await getToken();
-  const { res, json } = await fetchJson(`${BASE}/player/v1.0/search`, {
+  const { res, json } = await authedFetch(`${BASE}/player/v1.0/search`, {
     method: "POST",
-    headers: {
-      "Content-Type": "application/json",
-      ...authHeaders(token),
-    },
+    headers: { "Content-Type": "application/json" },
     body: JSON.stringify({
       query: query.trim(),
       limit: 10,
@@ -398,10 +438,8 @@ export async function searchDuprPlayers(query: string): Promise<DuprPlayer[]> {
 
 /** プレイヤーIDで最新レーティングを取得 */
 export async function getDuprPlayer(playerId: number): Promise<DuprPlayer | null> {
-  const token = await getToken();
-  const { res, json } = await fetchJson(`${BASE}/player/v1.0/${playerId}`, {
-    headers: authHeaders(token),
-  });
+  // ログイン無効(401)は authedFetch が「要認証」の例外にする。それ以外の失敗は null
+  const { res, json } = await authedFetch(`${BASE}/player/v1.0/${playerId}`);
   if (!res.ok || json?.status === "FAILURE" || !json?.result) return null;
   return parsePlayer(json.result);
 }

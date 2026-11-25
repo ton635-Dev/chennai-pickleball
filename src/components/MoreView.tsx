@@ -204,7 +204,7 @@ export function MoreView({
       setRefreshMsg(
         res.total === 0
           ? "連携済みのメンバーがいません"
-          : `更新しました(対象${res.total}名・変動${res.updated}名)`
+          : `更新しました(対象${res.total}名・変動${res.updated}名${res.failed ? `・取得できなかった人${res.failed}名` : ""})`
       );
       router.refresh();
     } catch {
